@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.VisualStudio.SDK">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+	  
+    <!-- VSIX -->
+    <IsVsixProject>true</IsVsixProject>
+    <IncludeVsixExtension>true</IncludeVsixExtension>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+	<VsixOutputPath>$(BaseIntermediateOutputPath)</VsixOutputPath>
+
+
+	<CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+
+    <RootNamespace>AgenticDebuggerVsix</RootNamespace>
+    <AssemblyName>AgenticDebuggerVsix</AssemblyName>
+    <PackageId>AgenticDebuggerVsix</PackageId>
+    <Authors>Local</Authors>
+    <Description>Agentic debugging bridge for Visual Studio (local HTTP server).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.0.0" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.10.2180" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest" />
+    <None Include="LICENSE.txt" />
+    <Content Include="Resources\icon.png" />
+    <Content Include="Resources\preview.png" />
+  </ItemGroup>
+
+    <Import Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v17.0\VSSDK\Microsoft.VsSDK.targets" />
+
+</Project>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageManifest Version="2.0.0"
+                 xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+
+	<Metadata>
+		<Identity Id="AgenticDebuggerVsix"
+				  Version="0.1"
+				  Language="en-US"
+				  Publisher="Local" />
+
+		<DisplayName>Agentic Debugger Bridge</DisplayName>
+		<Description>Local HTTP bridge for agentic debugging (breakpoints, stepping, locals).</Description>
+	</Metadata>
+
+	<Installation>
+		<InstallationTarget Id="Microsoft.VisualStudio.Community"
+							Version="[17.0,18.0)">
+			<ProductArchitecture>amd64</ProductArchitecture>
+		</InstallationTarget>
+	</Installation>
+
+	<Dependencies>
+		<Dependency Id="Microsoft.Framework.NDP"
+					DisplayName=".NET Framework"
+					Version="[4.7.2,)" />
+	</Dependencies>
+
+	<Assets>
+		<Asset Type="Microsoft.VisualStudio.VsPackage"
+			   d:Source="Project"
+			   d:Path="|AgenticDebuggerVsix|"
+			   xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011" />
+	</Assets>
+
+</PackageManifest>
