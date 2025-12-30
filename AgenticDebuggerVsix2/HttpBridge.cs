@@ -249,13 +249,16 @@ namespace AgenticDebuggerVsix
 
         private DebuggerSnapshot SafeSnapshot()
         {
-            lock (_lock)
+            if (ThreadHelper.JoinableTaskFactory.Context.IsOnMainThread)
             {
-                // shallow copy to avoid races
-                return JsonConvert.DeserializeObject<DebuggerSnapshot>(
-                    JsonConvert.SerializeObject(_lastSnapshot)
-                ) ?? new DebuggerSnapshot { Mode = "Unknown" };
+                return CaptureLiveSnapshotWithOverrides();
             }
+
+            return ThreadHelper.JoinableTaskFactory.Run(async () =>
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                return CaptureLiveSnapshotWithOverrides();
+            });
         }
 
         private void SetSnapshot(DebuggerSnapshot snap)
@@ -371,6 +374,46 @@ namespace AgenticDebuggerVsix
             catch { }
 
             return snap;
+        }
+
+        private DebuggerSnapshot CaptureLiveSnapshotWithOverrides()
+        {
+            var snap = CaptureLiveSnapshot();
+            string? notes;
+            string? exception;
+            lock (_lock)
+            {
+                notes = _lastSnapshot.Notes;
+                exception = _lastSnapshot.Exception;
+            }
+
+            if (!string.IsNullOrWhiteSpace(notes))
+                snap.Notes = notes;
+            if (!string.IsNullOrWhiteSpace(exception))
+                snap.Exception = exception;
+
+            return snap;
+        }
+
+        private DebuggerSnapshot CaptureLiveSnapshot()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var mode = "Unknown";
+            try
+            {
+                var debugMode = _dte.Debugger.CurrentMode;
+                mode = debugMode switch
+                {
+                    dbgDebugMode.dbgBreakMode => "Break",
+                    dbgDebugMode.dbgRunMode => "Run",
+                    dbgDebugMode.dbgDesignMode => "Design",
+                    _ => "Unknown"
+                };
+            }
+            catch { }
+
+            return CaptureSnapshot(mode, null);
         }
 
         private void WriteOutput(string message)

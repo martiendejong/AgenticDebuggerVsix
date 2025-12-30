@@ -31,17 +31,37 @@ namespace AgenticDebuggerVsix
             _bridge = new HttpBridge(this, Dte);
             _bridge.Start();
 
-            // Wire debugger events
+            // Wire debugger events after VS startup completes so debugger subsystem exists
             try
             {
-                var events = Dte.Events as Events2;
-                var dbgEvents = events?.DebuggerEvents;
-                if (dbgEvents != null)
+                Dte.Events.DTEEvents.OnStartupComplete += () =>
                 {
-                    dbgEvents.OnEnterBreakMode += _bridge.OnEnterBreakMode;
-                    dbgEvents.OnEnterRunMode += _bridge.OnEnterRunMode;
-                    dbgEvents.OnExceptionThrown += _bridge.OnExceptionThrown;
-                }
+                    void AttachEvents()
+                    {
+                        ThreadHelper.ThrowIfNotOnUIThread();
+                        var events = Dte.Events as Events2;
+                        var dbgEvents = events?.DebuggerEvents;
+                        if (dbgEvents != null)
+                        {
+                            dbgEvents.OnEnterBreakMode += _bridge.OnEnterBreakMode;
+                            dbgEvents.OnEnterRunMode += _bridge.OnEnterRunMode;
+                            dbgEvents.OnExceptionThrown += _bridge.OnExceptionThrown;
+                        }
+                    }
+
+                    if (ThreadHelper.JoinableTaskFactory.Context.IsOnMainThread)
+                    {
+                        AttachEvents();
+                    }
+                    else
+                    {
+                        ThreadHelper.JoinableTaskFactory.Run(async () =>
+                        {
+                            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                            AttachEvents();
+                        });
+                    }
+                };
             }
             catch
             {
