@@ -908,20 +908,35 @@ namespace AgenticDebuggerVsix
 <h1>Agentic Debugger Bridge</h1>
 <p><b>Port 27183 is the PRIMARY</b> controller. All other instances are registered as SECONDARY.</p>
 <h2>Discovery</h2>
-<p>Agentic Debugger writes a file to <code>%TEMP%\agentic_debugger.json</code> when running as Primary. Read this file to find the port.</p>
+<p>Agentic Debugger writes a file to <code>%TEMP%\agentic_debugger.json</code> when running as Primary. Read this file to find the port and auth details.</p>
+<h2>Auth</h2>
+<p>All requests must include the API key header. Default: <code>X-Api-Key: dev</code>. The discovery file includes the header name and default key.</p>
 <h2>Endpoints</h2>
 <ul>
 <li>GET /instances : List connected VS instances (Primary only)</li>
-<li>GET /state : Get state of THIS instance</li>
-<li>POST /command : Execute command. { ""action"": ""start|stop|break|step..."" }</li>
+<li>GET /state : Get state of this instance</li>
+<li>GET /errors : List items from Error List</li>
+<li>GET /projects : List solution projects</li>
+<li>GET /output : List Output panes</li>
+<li>GET /output/{name} : Get content of an Output pane (e.g. /output/Build)</li>
+<li>POST /command : Execute an action (see below)</li>
 </ul>
 
-<h3>Observability</h3>
+<h3>Commands (POST /command)</h3>
 <ul>
-<li>GET /errors : List items from Error List</li>
-<li>GET /projects : List Solution Projects</li>
-<li>GET /output : List Output Panes</li>
-<li>GET /output/{name} : Get content of Output Pane (e.g. /output/Build)</li>
+<li>Debug: start, go, continue, stop, break, pause</li>
+<li>Step: stepInto, stepOver, stepOut</li>
+<li>Build: clean, build, rebuild</li>
+<li>Breakpoints: setBreakpoint, clearBreakpoints</li>
+<li>Eval: eval, addWatch</li>
+</ul>
+<p>Command JSON fields:</p>
+<ul>
+<li><code>action</code> (string, required)</li>
+<li><code>projectName</code> (string, optional) - for start</li>
+<li><code>file</code> (string, optional) + <code>line</code> (int, optional) - for setBreakpoint</li>
+<li><code>expression</code> (string, optional) - for eval/addWatch</li>
+<li><code>instanceId</code> (string, optional) - proxy to a specific instance</li>
 </ul>
 
 <h2>Proxying</h2>
@@ -937,23 +952,136 @@ namespace AgenticDebuggerVsix
             return new {
                 openapi = "3.0.1",
                 info = new { title = "Agentic Debugger API", version = "1.0" },
+                components = new {
+                    securitySchemes = new {
+                        ApiKeyAuth = new {
+                            type = "apiKey",
+                            name = "X-Api-Key",
+                            @in = "header"
+                        }
+                    },
+                    schemas = new {
+                        DebuggerSnapshot = new {
+                            type = "object",
+                            properties = new {
+                                timestampUtc = new { type = "string" },
+                                mode = new { type = "string" },
+                                exception = new { type = "string" },
+                                file = new { type = "string" },
+                                line = new { type = "integer" },
+                                stack = new { type = "array", items = new { type = "string" } },
+                                locals = new { type = "object", additionalProperties = new { type = "string" } },
+                                notes = new { type = "string" },
+                                solutionName = new { type = "string" },
+                                solutionPath = new { type = "string" },
+                                startupProject = new { type = "string" }
+                            }
+                        },
+                        AgentResponse = new {
+                            type = "object",
+                            properties = new {
+                                ok = new { type = "boolean" },
+                                message = new { type = "string" },
+                                snapshot = new { @ref = "#/components/schemas/DebuggerSnapshot" }
+                            }
+                        },
+                        AgentCommand = new {
+                            type = "object",
+                            properties = new {
+                                action = new { type = "string" },
+                                file = new { type = "string" },
+                                line = new { type = "integer" },
+                                expression = new { type = "string" },
+                                condition = new { type = "string" },
+                                instanceId = new { type = "string" },
+                                projectName = new { type = "string" }
+                            },
+                            required = new[] { "action" }
+                        },
+                        ErrorItem = new {
+                            type = "object",
+                            properties = new {
+                                description = new { type = "string" },
+                                file = new { type = "string" },
+                                line = new { type = "integer" },
+                                project = new { type = "string" },
+                                errorLevel = new { type = "string" }
+                            }
+                        },
+                        Project = new {
+                            type = "object",
+                            properties = new {
+                                name = new { type = "string" },
+                                uniqueName = new { type = "string" },
+                                fullPath = new { type = "string" }
+                            }
+                        },
+                        OutputPane = new {
+                            type = "object",
+                            properties = new {
+                                name = new { type = "string" },
+                                guid = new { type = "string" }
+                            }
+                        },
+                        InstanceInfo = new {
+                            type = "object",
+                            properties = new {
+                                id = new { type = "string" },
+                                pid = new { type = "integer" },
+                                port = new { type = "integer" },
+                                solutionName = new { type = "string" },
+                                lastSeen = new { type = "string" }
+                            }
+                        }
+                    }
+                },
+                security = new[] { new { ApiKeyAuth = Array.Empty<string>() } },
                 paths = new {
+                    _state = new {
+                        get = new {
+                            summary = "Get debugger state for this instance",
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } }
+                        }
+                    },
                     _errors = new {
                         get = new {
                             summary = "Get Error List items",
-                            responses = new { _200 = new { description = "OK" } }
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/ErrorItem" } } } } } }
                         }
                     },
-                     _projects = new {
+                    _projects = new {
                         get = new {
-                            summary = "Get Projects in Solution",
-                            responses = new { _200 = new { description = "OK" } }
+                            summary = "Get projects in solution",
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/Project" } } } } } }
                         }
                     },
                     _output = new {
                         get = new {
-                            summary = "List Output Panes",
+                            summary = "List Output panes",
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/OutputPane" } } } } } }
+                        }
+                    },
+                    _output_name = new {
+                        get = new {
+                            summary = "Get Output pane content",
+                            parameters = new[] { new { name = "name", @in = "path", required = true, schema = new { type = "string" } } },
                             responses = new { _200 = new { description = "OK" } }
+                        }
+                    },
+                    _instances = new {
+                        get = new {
+                            summary = "List connected VS instances (primary only)",
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/InstanceInfo" } } } } } }
+                        }
+                    },
+                    _command = new {
+                        post = new {
+                            summary = "Execute command",
+                            requestBody = new {
+                                required = true,
+                                content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentCommand" } } }
+                            },
+                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } }
                         }
                     }
                 }
