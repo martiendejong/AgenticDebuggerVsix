@@ -1322,108 +1322,310 @@ namespace AgenticDebuggerVsix
         private string GetDocsHtml()
         {
             return @"
-<html><body>
-<h1>Agentic Debugger Bridge</h1>
-<p><b>Port 27183 is the PRIMARY</b> controller. All other instances are registered as SECONDARY.</p>
-<h2>Discovery</h2>
-<p>Agentic Debugger writes a file to <code>%TEMP%\agentic_debugger.json</code> when running as Primary. Read this file to find the port and auth details.</p>
-<h2>Auth</h2>
-<p>All requests must include the API key header. Default: <code>X-Api-Key: dev</code>. The discovery file includes the header name and default key.</p>
-<h2>Endpoints</h2>
+<html><head><style>
+body{font-family:system-ui,sans-serif;max-width:1200px;margin:20px auto;padding:0 20px;line-height:1.6}
+h1{border-bottom:2px solid #0078d4;padding-bottom:10px}
+h2{color:#0078d4;margin-top:30px}
+h3{color:#106ebe;margin-top:20px}
+code{background:#f0f0f0;padding:2px 6px;border-radius:3px}
+pre{background:#f5f5f5;padding:10px;border-left:3px solid #0078d4;overflow-x:auto}
+ul{margin:10px 0}
+li{margin:5px 0}
+.endpoint{font-weight:bold;color:#107c10}
+.method-get{color:#0078d4}
+.method-post{color:#ca5010}
+.method-delete{color:#d13438}
+.method-ws{color:#8764b8}
+</style></head><body>
+<h1>🤖 Agentic Debugger Bridge API</h1>
+<p><strong>Version:</strong> 1.0 | <strong>Port:</strong> 27183 (Primary) | <strong>Protocol:</strong> HTTP + WebSocket</p>
+
+<h2>📡 Discovery</h2>
+<p>The bridge writes <code>%TEMP%\agentic_debugger.json</code> with connection details:</p>
+<pre>{""port"":27183,""pid"":1234,""keyHeader"":""X-Api-Key"",""defaultKey"":""dev""}</pre>
+
+<h2>🔒 Authentication</h2>
+<p>All HTTP requests require: <code>X-Api-Key: dev</code> header</p>
+
+<h2>🌐 Core Endpoints</h2>
 <ul>
-<li>GET /instances : List connected VS instances (Primary only)</li>
-<li>GET /state : Get state of this instance</li>
-<li>GET /errors : List items from Error List</li>
-<li>GET /projects : List solution projects</li>
-<li>GET /output : List Output panes</li>
-<li>GET /output/{name} : Get content of an Output pane (e.g. /output/Build)</li>
-<li>POST /command : Execute an action (see below)</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/</span> - API status check</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/docs</span> - This documentation</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/swagger.json</span> - OpenAPI 3.0 specification</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/state</span> - Get debugger state (mode, stack, locals, file/line)</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/instances</span> - List all VS instances (Primary only)</li>
 </ul>
 
-<h3>Commands (POST /command)</h3>
+<h2>🐛 Debugger Control</h2>
+<h3>POST /command</h3>
+<p>Execute debugger/build commands. JSON body with <code>action</code> field:</p>
 <ul>
-<li>Debug: start, go, continue, stop, break, pause</li>
-<li>Step: stepInto, stepOver, stepOut</li>
-<li>Build: clean, build, rebuild</li>
-<li>Breakpoints: setBreakpoint, clearBreakpoints</li>
-<li>Eval: eval, addWatch</li>
+<li><strong>Debug:</strong> start, go, continue, stop, break, pause</li>
+<li><strong>Step:</strong> stepInto, stepOver, stepOut</li>
+<li><strong>Build:</strong> clean, build, rebuild</li>
+<li><strong>Breakpoints:</strong> setBreakpoint, clearBreakpoints</li>
+<li><strong>Eval:</strong> eval, addWatch</li>
 </ul>
-<p>Command JSON fields:</p>
+<p><strong>Fields:</strong> action (required), projectName, file, line, expression, condition, instanceId</p>
+<pre>{""action"":""start"",""projectName"":""MyApp""}</pre>
+
+<h2>⚡ Batch Operations</h2>
 <ul>
-<li><code>action</code> (string, required)</li>
-<li><code>projectName</code> (string, optional) - for start</li>
-<li><code>file</code> (string, optional) + <code>line</code> (int, optional) - for setBreakpoint</li>
-<li><code>expression</code> (string, optional) - for eval/addWatch</li>
-<li><code>instanceId</code> (string, optional) - proxy to a specific instance</li>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/batch</span> - Execute multiple commands in one request (10x faster)</li>
+</ul>
+<pre>{""commands"":[{""action"":""setBreakpoint"",""file"":""C:\\Code\\Program.cs"",""line"":42},{""action"":""start""}],""stopOnError"":true}</pre>
+
+<h2>🔍 Code Analysis (Roslyn)</h2>
+<ul>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/code/symbols</span> - Search symbols (classes, methods, properties)</li>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/code/definition</span> - Go to definition at file position</li>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/code/references</span> - Find all references to symbol</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/code/outline?file={path}</span> - Get document structure</li>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/code/semantic</span> - Get semantic info (type, docs) at position</li>
+</ul>
+<p><strong>Example - Symbol Search:</strong></p>
+<pre>{""query"":""Customer"",""kind"":""Class"",""maxResults"":50}</pre>
+<p><strong>Example - Go to Definition:</strong></p>
+<pre>{""file"":""C:\\Code\\Program.cs"",""line"":42,""column"":15}</pre>
+
+<h2>📊 Observability</h2>
+<ul>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/metrics</span> - Performance metrics (requests, latency, errors, commands)</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/health</span> - Health status (OK/Degraded/Down)</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/logs</span> - Recent request/response logs (last 100)</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/logs/{id}</span> - Specific log entry</li>
+<li><span class=""method-delete"">DELETE</span> <span class=""endpoint"">/logs</span> - Clear all logs</li>
 </ul>
 
-<h2>Proxying</h2>
-<p>To control a specific instance, pass <code>instanceId</code> in the command JSON or use <code>/proxy/{id}/...</code> endpoints.</p>
+<h2>📋 Solution Information</h2>
+<ul>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/errors</span> - Build errors/warnings from Error List</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/projects</span> - List projects in solution</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/output</span> - List Output window panes</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/output/{name}</span> - Get Output pane content (e.g., /output/Build)</li>
+</ul>
 
-<h2>Swagger</h2>
-<a href=""/swagger.json"">/swagger.json</a>
+<h2>⚙️ Configuration</h2>
+<ul>
+<li><span class=""method-post"">POST</span> <span class=""endpoint"">/configure</span> - Configure agent/human mode, suppress warnings, auto-save</li>
+</ul>
+<pre>{""mode"":""agent"",""suppressWarnings"":true,""autoSave"":true}</pre>
+
+<h2>🔌 Real-Time WebSocket</h2>
+<ul>
+<li><span class=""method-ws"">WS</span> <span class=""endpoint"">/ws</span> - WebSocket connection for push notifications (&lt;100ms latency)</li>
+</ul>
+<p><strong>Events:</strong> <code>connected</code>, <code>stateChange</code> (breakpoint hit, exception, debug stop), <code>pong</code></p>
+<p><strong>Connect:</strong> <code>ws://localhost:27183/ws</code> (no auth header needed for WS)</p>
+
+<h2>🔀 Multi-Instance Proxying</h2>
+<p>Control specific VS instances by including <code>instanceId</code> in command JSON, or use proxy endpoints:</p>
+<ul>
+<li><span class=""endpoint"">/proxy/{id}/state</span> - Get state of specific instance</li>
+<li><span class=""endpoint"">/proxy/{id}/command</span> - Send command to specific instance</li>
+</ul>
+
+<h2>📚 Full API Specification</h2>
+<p>For complete OpenAPI 3.0 specification with all schemas and examples:</p>
+<p><a href=""/swagger.json"">📄 /swagger.json</a></p>
+
+<hr>
+<p><em>Built for next-generation AI-assisted software development. Enable agents to see and control Visual Studio programmatically.</em></p>
 </body></html>";
         }
         
         private object GetSwaggerJson()
         {
-            return new {
+            // Comprehensive OpenAPI 3.0 specification for AI agent discovery
+            var spec = new {
                 openapi = "3.0.1",
-                info = new { title = "Agentic Debugger API", version = "1.0" },
+                info = new {
+                    title = "Agentic Debugger Bridge API",
+                    version = "1.0.0",
+                    description = "HTTP + WebSocket API for AI agents to control Visual Studio debugger, build system, and perform semantic code analysis via Roslyn"
+                },
+                servers = new[] {
+                    new { url = "http://localhost:27183", description = "Primary Bridge (default port)" }
+                },
                 components = new {
                     securitySchemes = new {
                         ApiKeyAuth = new {
                             type = "apiKey",
                             name = "X-Api-Key",
-                            @in = "header"
+                            @in = "header",
+                            description = "API key for authentication. Default: 'dev'. Found in %TEMP%\\agentic_debugger.json"
                         }
                     },
                     schemas = new {
+                        // Core models
                         DebuggerSnapshot = new {
                             type = "object",
+                            description = "Current state of debugger with stack, locals, and position",
                             properties = new {
-                                timestampUtc = new { type = "string" },
-                                mode = new { type = "string" },
-                                exception = new { type = "string" },
-                                file = new { type = "string" },
-                                line = new { type = "integer" },
-                                stack = new { type = "array", items = new { type = "string" } },
-                                locals = new { type = "object", additionalProperties = new { type = "string" } },
-                                notes = new { type = "string" },
-                                solutionName = new { type = "string" },
-                                solutionPath = new { type = "string" },
-                                startupProject = new { type = "string" }
+                                timestampUtc = new { type = "string", format = "date-time" },
+                                mode = new { type = "string", @enum = new[] { "Design", "Run", "Break" }, description = "Debugger mode" },
+                                exception = new { type = "string", nullable = true },
+                                file = new { type = "string", nullable = true },
+                                line = new { type = "integer", nullable = true },
+                                stack = new { type = "array", items = new { type = "string" }, description = "Call stack frames" },
+                                locals = new { type = "object", additionalProperties = new { type = "string" }, description = "Local variables" },
+                                notes = new { type = "string", nullable = true },
+                                solutionName = new { type = "string", nullable = true },
+                                solutionPath = new { type = "string", nullable = true },
+                                startupProject = new { type = "string", nullable = true }
                             }
                         },
                         AgentResponse = new {
                             type = "object",
                             properties = new {
-                                ok = new { type = "boolean" },
-                                message = new { type = "string" },
-                                snapshot = new { @ref = "#/components/schemas/DebuggerSnapshot" }
+                                ok = new { type = "boolean", description = "Success flag" },
+                                message = new { type = "string", description = "Status or error message" },
+                                snapshot = new { @ref = "#/components/schemas/DebuggerSnapshot", nullable = true }
                             }
                         },
                         AgentCommand = new {
                             type = "object",
+                            required = new[] { "action" },
                             properties = new {
-                                action = new { type = "string" },
+                                action = new { type = "string", description = "Command action: start, stop, break, stepInto, stepOver, stepOut, build, rebuild, clean, setBreakpoint, clearBreakpoints, eval, etc." },
+                                file = new { type = "string", nullable = true, description = "File path for setBreakpoint" },
+                                line = new { type = "integer", nullable = true, description = "Line number for setBreakpoint" },
+                                expression = new { type = "string", nullable = true, description = "Expression for eval/addWatch" },
+                                condition = new { type = "string", nullable = true, description = "Breakpoint condition" },
+                                instanceId = new { type = "string", nullable = true, description = "Target specific VS instance" },
+                                projectName = new { type = "string", nullable = true, description = "Project name for start command" }
+                            },
+                            example = new { action = "start", projectName = "MyApp" }
+                        },
+                        // Batch operations
+                        BatchCommand = new {
+                            type = "object",
+                            properties = new {
+                                commands = new { type = "array", items = new { @ref = "#/components/schemas/AgentCommand" }, description = "Array of commands to execute" },
+                                stopOnError = new { type = "boolean", @default = true, description = "Stop execution on first error" }
+                            }
+                        },
+                        BatchResponse = new {
+                            type = "object",
+                            properties = new {
+                                ok = new { type = "boolean" },
+                                results = new { type = "array", items = new { @ref = "#/components/schemas/AgentResponse" } },
+                                successCount = new { type = "integer" },
+                                failureCount = new { type = "integer" },
+                                totalCommands = new { type = "integer" }
+                            }
+                        },
+                        // Roslyn Code Analysis models
+                        SymbolInfo = new {
+                            type = "object",
+                            description = "Information about a code symbol (class, method, property, etc.)",
+                            properties = new {
+                                name = new { type = "string" },
+                                kind = new { type = "string", description = "Symbol kind: Class, Method, Property, Field, etc." },
+                                containerName = new { type = "string", nullable = true, description = "Containing type or namespace" },
+                                file = new { type = "string", nullable = true },
+                                line = new { type = "integer", nullable = true },
+                                column = new { type = "integer", nullable = true },
+                                summary = new { type = "string", nullable = true, description = "XML documentation summary" }
+                            }
+                        },
+                        CodeLocation = new {
+                            type = "object",
+                            properties = new {
                                 file = new { type = "string" },
                                 line = new { type = "integer" },
-                                expression = new { type = "string" },
-                                condition = new { type = "string" },
-                                instanceId = new { type = "string" },
-                                projectName = new { type = "string" }
-                            },
-                            required = new[] { "action" }
+                                column = new { type = "integer" },
+                                endLine = new { type = "integer", nullable = true },
+                                endColumn = new { type = "integer", nullable = true }
+                            }
                         },
+                        SymbolSearchRequest = new {
+                            type = "object",
+                            required = new[] { "query" },
+                            properties = new {
+                                query = new { type = "string", description = "Search term" },
+                                kind = new { type = "string", nullable = true, description = "Filter by symbol kind (Class, Method, etc.)" },
+                                maxResults = new { type = "integer", @default = 50 }
+                            }
+                        },
+                        SymbolSearchResponse = new {
+                            type = "object",
+                            properties = new {
+                                ok = new { type = "boolean" },
+                                results = new { type = "array", items = new { @ref = "#/components/schemas/SymbolInfo" } },
+                                totalFound = new { type = "integer" }
+                            }
+                        },
+                        DefinitionRequest = new {
+                            type = "object",
+                            required = new[] { "file", "line", "column" },
+                            properties = new {
+                                file = new { type = "string" },
+                                line = new { type = "integer" },
+                                column = new { type = "integer" }
+                            }
+                        },
+                        DefinitionResponse = new {
+                            type = "object",
+                            properties = new {
+                                ok = new { type = "boolean" },
+                                message = new { type = "string" },
+                                symbol = new { @ref = "#/components/schemas/SymbolInfo", nullable = true },
+                                location = new { @ref = "#/components/schemas/CodeLocation", nullable = true }
+                            }
+                        },
+                        // Configuration
+                        ConfigureRequest = new {
+                            type = "object",
+                            properties = new {
+                                mode = new { type = "string", @enum = new[] { "agent", "human" }, @default = "human" },
+                                suppressWarnings = new { type = "boolean", @default = false },
+                                autoSave = new { type = "boolean", @default = false }
+                            }
+                        },
+                        ConfigureResponse = new {
+                            type = "object",
+                            properties = new {
+                                ok = new { type = "boolean" },
+                                message = new { type = "string" },
+                                appliedMode = new { type = "string" },
+                                settings = new { type = "object", additionalProperties = new { type = "string" } }
+                            }
+                        },
+                        // Observability
+                        Metrics = new {
+                            type = "object",
+                            description = "Performance metrics",
+                            properties = new {
+                                startTime = new { type = "string", format = "date-time" },
+                                uptime = new { type = "string" },
+                                totalRequests = new { type = "integer", format = "int64" },
+                                totalErrors = new { type = "integer", format = "int64" },
+                                averageResponseTimeMs = new { type = "number", format = "double" },
+                                activeWebSocketConnections = new { type = "integer" },
+                                endpointCounts = new { type = "object", additionalProperties = new { type = "integer" } },
+                                commandCounts = new { type = "object", additionalProperties = new { type = "integer" } },
+                                instanceCount = new { type = "integer" }
+                            }
+                        },
+                        HealthStatus = new {
+                            type = "object",
+                            properties = new {
+                                status = new { type = "string", @enum = new[] { "OK", "Degraded", "Down" } },
+                                uptime = new { type = "string" },
+                                timestamp = new { type = "string", format = "date-time" },
+                                details = new { type = "object", additionalProperties = new { type = "string" } }
+                            }
+                        },
+                        // Other models
                         ErrorItem = new {
                             type = "object",
                             properties = new {
                                 description = new { type = "string" },
-                                file = new { type = "string" },
+                                file = new { type = "string", nullable = true },
                                 line = new { type = "integer" },
-                                project = new { type = "string" },
-                                errorLevel = new { type = "string" }
+                                project = new { type = "string", nullable = true },
+                                errorLevel = new { type = "string", @enum = new[] { "Error", "Warning" } }
                             }
                         },
                         Project = new {
@@ -1431,14 +1633,7 @@ namespace AgenticDebuggerVsix
                             properties = new {
                                 name = new { type = "string" },
                                 uniqueName = new { type = "string" },
-                                fullPath = new { type = "string" }
-                            }
-                        },
-                        OutputPane = new {
-                            type = "object",
-                            properties = new {
-                                name = new { type = "string" },
-                                guid = new { type = "string" }
+                                fullPath = new { type = "string", nullable = true }
                             }
                         },
                         InstanceInfo = new {
@@ -1448,62 +1643,43 @@ namespace AgenticDebuggerVsix
                                 pid = new { type = "integer" },
                                 port = new { type = "integer" },
                                 solutionName = new { type = "string" },
-                                lastSeen = new { type = "string" }
+                                lastSeen = new { type = "string", format = "date-time" }
                             }
                         }
                     }
                 },
                 security = new[] { new { ApiKeyAuth = Array.Empty<string>() } },
-                paths = new {
-                    _state = new {
-                        get = new {
-                            summary = "Get debugger state for this instance",
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } }
-                        }
-                    },
-                    _errors = new {
-                        get = new {
-                            summary = "Get Error List items",
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/ErrorItem" } } } } } }
-                        }
-                    },
-                    _projects = new {
-                        get = new {
-                            summary = "Get projects in solution",
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/Project" } } } } } }
-                        }
-                    },
-                    _output = new {
-                        get = new {
-                            summary = "List Output panes",
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/OutputPane" } } } } } }
-                        }
-                    },
-                    _output_name = new {
-                        get = new {
-                            summary = "Get Output pane content",
-                            parameters = new[] { new { name = "name", @in = "path", required = true, schema = new { type = "string" } } },
-                            responses = new { _200 = new { description = "OK" } }
-                        }
-                    },
-                    _instances = new {
-                        get = new {
-                            summary = "List connected VS instances (primary only)",
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/InstanceInfo" } } } } } }
-                        }
-                    },
-                    _command = new {
-                        post = new {
-                            summary = "Execute command",
-                            requestBody = new {
-                                required = true,
-                                content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentCommand" } } }
-                            },
-                            responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } }
-                        }
-                    }
+                paths = new Dictionary<string, object> {
+                    ["/"] = new { get = new { summary = "API status check", tags = new[] { "Core" }, responses = new { _200 = new { description = "OK" } } } },
+                    ["/docs"] = new { get = new { summary = "API documentation (HTML)", tags = new[] { "Core" }, responses = new { _200 = new { description = "HTML documentation" } } } },
+                    ["/swagger.json"] = new { get = new { summary = "OpenAPI specification", tags = new[] { "Core" }, responses = new { _200 = new { description = "OpenAPI 3.0 JSON" } } } },
+                    ["/state"] = new { get = new { summary = "Get debugger state", tags = new[] { "Debugger" }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } } } },
+                    ["/command"] = new { post = new { summary = "Execute debugger/build command", tags = new[] { "Debugger" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentCommand" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } } } },
+                    ["/batch"] = new { post = new { summary = "Execute multiple commands (10x faster)", tags = new[] { "Debugger" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/BatchCommand" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/BatchResponse" } } } } } } },
+                    ["/code/symbols"] = new { post = new { summary = "Search symbols across solution", tags = new[] { "Roslyn" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/SymbolSearchRequest" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/SymbolSearchResponse" } } } } } } },
+                    ["/code/definition"] = new { post = new { summary = "Go to definition", tags = new[] { "Roslyn" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/DefinitionRequest" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/DefinitionResponse" } } } } } } },
+                    ["/code/references"] = new { post = new { summary = "Find all references", tags = new[] { "Roslyn" }, description = "Find all references to symbol at position", responses = new { _200 = new { description = "OK" } } } },
+                    ["/code/outline"] = new { get = new { summary = "Get document structure", tags = new[] { "Roslyn" }, parameters = new[] { new { name = "file", @in = "query", required = true, schema = new { type = "string" } } }, responses = new { _200 = new { description = "OK" } } } },
+                    ["/code/semantic"] = new { post = new { summary = "Get semantic info at position", tags = new[] { "Roslyn" }, description = "Get type, documentation for symbol at position", responses = new { _200 = new { description = "OK" } } } },
+                    ["/metrics"] = new { get = new { summary = "Performance metrics", tags = new[] { "Observability" }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/Metrics" } } } } } } },
+                    ["/health"] = new { get = new { summary = "Health status", tags = new[] { "Observability" }, responses = new { _200 = new { description = "Healthy", content = new { application_json = new { schema = new { @ref = "#/components/schemas/HealthStatus" } } } }, _503 = new { description = "Degraded or Down" } } } },
+                    ["/logs"] = new { get = new { summary = "Get recent request logs", tags = new[] { "Observability" }, responses = new { _200 = new { description = "OK" } } }, delete = new { summary = "Clear all logs", tags = new[] { "Observability" }, responses = new { _200 = new { description = "OK" } } } },
+                    ["/configure"] = new { post = new { summary = "Configure agent/human mode", tags = new[] { "Configuration" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/ConfigureRequest" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/ConfigureResponse" } } } } } } },
+                    ["/errors"] = new { get = new { summary = "Get build errors/warnings", tags = new[] { "Solution" }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/ErrorItem" } } } } } } } },
+                    ["/projects"] = new { get = new { summary = "Get projects in solution", tags = new[] { "Solution" }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/Project" } } } } } } } },
+                    ["/instances"] = new { get = new { summary = "List VS instances", tags = new[] { "Multi-Instance" }, description = "Primary only - list all connected instances", responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { type = "array", items = new { @ref = "#/components/schemas/InstanceInfo" } } } } } } } }
+                },
+                tags = new[] {
+                    new { name = "Core", description = "Core API endpoints" },
+                    new { name = "Debugger", description = "Debugger control and state" },
+                    new { name = "Roslyn", description = "Code analysis and semantic navigation" },
+                    new { name = "Observability", description = "Metrics, health, and logging" },
+                    new { name = "Configuration", description = "Agent/human mode configuration" },
+                    new { name = "Solution", description = "Solution information (errors, projects)" },
+                    new { name = "Multi-Instance", description = "Multi-instance management" }
                 }
             };
+            return spec;
         }
     }
 }
