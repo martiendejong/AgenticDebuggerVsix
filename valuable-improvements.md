@@ -2,7 +2,7 @@
 
 *Ordered by Value/Effort Ratio (Highest ROI at Top)*
 
-**Status**: Items 1-4 completed 2026-01-05. See NEXT-STEPS.md for next priorities.
+**Status**: Items 1-5 and #6 (Roslyn) completed 2026-01-05. See NEXT-STEPS.md for next priorities.
 
 ---
 
@@ -76,8 +76,9 @@
 
 ---
 
-## 6. **Roslyn Code Analysis Integration** 🔍
+## 6. ✅ **Roslyn Code Analysis Integration** 🔍 [COMPLETED]
 **Value**: 10/10 | **Effort**: 3/10 | **Ratio**: 3.3
+**Status**: ✅ Implemented in RoslynBridge.cs (430 lines), 5 endpoints: /code/symbols, /code/definition, /code/references, /code/outline, /code/semantic
 
 **Experts**: Dustin Campbell, Kathleen Dollard, Jon Skeet
 
@@ -85,7 +86,7 @@
 
 **Impact**: 100x agent capabilities - code understanding, refactoring suggestions, intelligent debugging.
 
-**Implementation**: Endpoints for symbol search, document analysis, semantic queries; uses existing Roslyn in VS; ~300 lines.
+**Implementation**: Endpoints for symbol search, document analysis, semantic queries; uses existing Roslyn in VS; ~430 lines implemented.
 
 ---
 

@@ -12,6 +12,7 @@ The **Agentic Debugger Bridge** allows external tools (like AI coding agents) to
 *   **Full Debugger Control**: Start, Stop, Break, Step Into/Over/Out, Set Breakpoints, Evaluate Expressions.
 *   **Build System Integration**: Clean, Build, and Rebuild solutions or specific projects.
 *   **Batch Command Execution**: Execute multiple commands in a single request (10x faster workflows).
+*   **Roslyn Code Analysis**: Semantic code navigation - search symbols, go to definition, find references, get document outline, type information.
 *   **Observability & Diagnostics**:
     *   **Error List API**: Read compilation errors and warnings directly as JSON.
     *   **Output Window API**: retrieve full build or debug logs programmatically.
@@ -50,6 +51,13 @@ Visit **`http://localhost:27183/docs`** for a friendly documentation page, or **
 *   `GET /output/{pane}` - Get text from Output window (e.g. `/output/Build`).
 *   `GET /projects` - List projects in the solution.
 *   `GET /instances` - List all connected VS instances (Primary only).
+
+**Code Analysis (Roslyn):**
+*   `POST /code/symbols` - Search symbols across solution (classes, methods, properties).
+*   `POST /code/definition` - Go to definition at file position.
+*   `POST /code/references` - Find all references to symbol.
+*   `GET /code/outline?file={path}` - Get document structure hierarchy.
+*   `POST /code/semantic` - Get semantic info at position (type, docs).
 
 **Observability:**
 *   `GET /metrics` - Real-time performance metrics (requests, latency, commands).
@@ -205,6 +213,122 @@ curl http://localhost:27183/logs/123
 ```bash
 curl -X DELETE http://localhost:27183/logs
 ```
+
+### 8. Roslyn Code Analysis (NEW!)
+
+Semantic code navigation and analysis powered by Roslyn. Enables agents to understand code structure, search symbols, navigate definitions, and find references.
+
+**Search Symbols Across Solution:**
+```bash
+POST /code/symbols
+{
+  "query": "Customer",
+  "kind": "Class",  # optional: Class, Method, Property, Field, etc.
+  "maxResults": 50
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "results": [
+    {
+      "name": "Customer",
+      "kind": "Class",
+      "containerName": "MyApp.Models",
+      "file": "C:\\Code\\Models\\Customer.cs",
+      "line": 10,
+      "column": 18,
+      "summary": "Represents a customer entity"
+    }
+  ],
+  "totalFound": 1
+}
+```
+
+**Go to Definition:**
+```bash
+POST /code/definition
+{
+  "file": "C:\\Code\\Program.cs",
+  "line": 42,
+  "column": 15
+}
+```
+
+**Find All References:**
+```bash
+POST /code/references
+{
+  "file": "C:\\Code\\Models\\Customer.cs",
+  "line": 10,
+  "column": 18,
+  "includeDeclaration": true
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "symbol": {
+    "name": "Customer",
+    "kind": "Class",
+    "containerName": "MyApp.Models"
+  },
+  "references": [
+    {
+      "file": "C:\\Code\\Program.cs",
+      "line": 25,
+      "column": 12,
+      "endLine": 25,
+      "endColumn": 20
+    }
+  ],
+  "totalCount": 15
+}
+```
+
+**Get Document Outline:**
+```bash
+GET /code/outline?file=C:\Code\Program.cs
+```
+
+Returns hierarchical structure of classes, methods, properties in the file.
+
+**Get Semantic Info at Position:**
+```bash
+POST /code/semantic
+{
+  "file": "C:\\Code\\Program.cs",
+  "line": 42,
+  "column": 15
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "symbol": {
+    "name": "ProcessOrder",
+    "kind": "Method",
+    "containerName": "OrderService"
+  },
+  "type": "void",
+  "documentation": "<summary>Processes an order...</summary>",
+  "isLocal": false,
+  "isParameter": false
+}
+```
+
+**Benefits:**
+- **100x Agent Capabilities**: Semantic understanding vs text-only
+- **Code Navigation**: Jump to definitions, find usages across solution
+- **Intelligent Search**: Find classes, methods, properties by name
+- **Type Information**: Understand types, documentation, symbols
+- **Context Aware**: Know what symbol is under cursor position
 
 ## 🔒 Security Note
 This extension opens a local HTTP server. It uses a simple `X-Api-Key: dev` header by default. It is intended for **local development use only** to bridge AI agents running on the same machine.
