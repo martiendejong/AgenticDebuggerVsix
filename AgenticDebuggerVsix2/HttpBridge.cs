@@ -43,6 +43,9 @@ namespace AgenticDebuggerVsix
         // Metrics collection
         private readonly MetricsCollector _metrics = new();
 
+        // Request logging
+        private readonly RequestLogger _logger = new();
+
         internal HttpBridge(AsyncPackage package, DTE2 dte)
         {
             _package = package;
@@ -276,8 +279,16 @@ namespace AgenticDebuggerVsix
             if (string.IsNullOrWhiteSpace(path)) path = "/";
             string method = ctx.Request.HttpMethod;
 
+            // Read body once for both logging and processing
+            string requestBody = method == "POST" ? ReadBody(ctx.Request) : null;
+
+            // Start logging
+            var logEntry = _logger.StartRequest(method, path, requestBody);
+
             long elapsedMs = 0;
             bool isError = false;
+            string responseBody = "";
+            int statusCode = 200;
 
             using (new RequestTimer(ms => elapsedMs = ms))
             {
@@ -285,21 +296,31 @@ namespace AgenticDebuggerVsix
                 {
                     if (!IsAuthorized(ctx.Request))
                     {
-                        RespondText(ctx.Response, "Unauthorized", 401);
+                        responseBody = "Unauthorized";
+                        statusCode = 401;
+                        RespondText(ctx.Response, responseBody, statusCode);
                         isError = true;
                         return;
                     }
 
-                    HandleRequest(ctx, path, method, out isError);
+                    HandleRequest(ctx, path, method, requestBody, out isError);
+                    statusCode = ctx.Response.StatusCode;
+                }
+                catch (Exception ex)
+                {
+                    isError = true;
+                    statusCode = 500;
+                    responseBody = ex.Message;
                 }
                 finally
                 {
                     _metrics.RecordRequest(path, elapsedMs, isError);
+                    _logger.CompleteRequest(logEntry, responseBody, statusCode, elapsedMs);
                 }
             }
         }
 
-        private void HandleRequest(HttpListenerContext ctx, string path, string method, out bool isError)
+        private void HandleRequest(HttpListenerContext ctx, string path, string method, string requestBody, out bool isError)
         {
             isError = false;
 
@@ -334,8 +355,40 @@ namespace AgenticDebuggerVsix
             if (method == "GET" && path == "/health")
             {
                 var health = _metrics.GetHealth();
-                int statusCode = health.Status == "OK" ? 200 : health.Status == "Degraded" ? 503 : 503;
-                RespondJson(ctx.Response, health, statusCode);
+                int statusCode_health = health.Status == "OK" ? 200 : health.Status == "Degraded" ? 503 : 503;
+                RespondJson(ctx.Response, health, statusCode_health);
+                return;
+            }
+
+            // Logging endpoints
+            if (method == "GET" && path == "/logs")
+            {
+                // Parse query parameters for filtering
+                var logs = _logger.GetLogs(limit: 100); // Default to last 100
+                RespondJson(ctx.Response, logs, 200);
+                return;
+            }
+
+            if (method == "GET" && path.StartsWith("/logs/"))
+            {
+                var logId = path.Substring("/logs/".Length);
+                var log = _logger.GetLogById(logId);
+                if (log == null)
+                {
+                    isError = true;
+                    RespondText(ctx.Response, "Log entry not found", 404);
+                }
+                else
+                {
+                    RespondJson(ctx.Response, log, 200);
+                }
+                return;
+            }
+
+            if (method == "DELETE" && path == "/logs")
+            {
+                _logger.Clear();
+                RespondText(ctx.Response, "Logs cleared", 200);
                 return;
             }
 
@@ -402,9 +455,8 @@ namespace AgenticDebuggerVsix
                  
                  if (method == "POST" && path == "/register")
                  {
-                     var body = ReadBody(ctx.Request);
                      try {
-                         var info = JsonConvert.DeserializeObject<InstanceInfo>(body);
+                         var info = JsonConvert.DeserializeObject<InstanceInfo>(requestBody);
                          if (info != null) {
                              info.LastSeen = DateTime.UtcNow;
                              lock(_registry) {
@@ -426,7 +478,7 @@ namespace AgenticDebuggerVsix
                      {
                          var targetId = segments[2];
                          var suffix = "/" + string.Join("/", segments.Skip(3));
-                         ProxyRequest(ctx, targetId, method, suffix, method == "POST" ? ReadBody(ctx.Request) : null);
+                         ProxyRequest(ctx, targetId, method, suffix, method == "POST" ? requestBody : null);
                          return;
                      }
                  }
@@ -434,9 +486,8 @@ namespace AgenticDebuggerVsix
 
             if (method == "POST" && path == "/command")
             {
-                var body = ReadBody(ctx.Request);
                 AgentCommand? cmd = null;
-                try { cmd = JsonConvert.DeserializeObject<AgentCommand>(body); } catch { }
+                try { cmd = JsonConvert.DeserializeObject<AgentCommand>(requestBody); } catch { }
 
                 if (cmd == null || string.IsNullOrWhiteSpace(cmd.Action))
                 {
@@ -453,7 +504,7 @@ namespace AgenticDebuggerVsix
                 {
                     if (_isPrimary)
                     {
-                        ProxyRequest(ctx, cmd.InstanceId, "POST", "/command", body);
+                        ProxyRequest(ctx, cmd.InstanceId, "POST", "/command", requestBody);
                         return;
                     }
                     else
@@ -477,9 +528,8 @@ namespace AgenticDebuggerVsix
             // Batch command endpoint
             if (method == "POST" && path == "/batch")
             {
-                var body = ReadBody(ctx.Request);
                 BatchCommand? batchCmd = null;
-                try { batchCmd = JsonConvert.DeserializeObject<BatchCommand>(body); } catch { }
+                try { batchCmd = JsonConvert.DeserializeObject<BatchCommand>(requestBody); } catch { }
 
                 if (batchCmd == null || batchCmd.Commands == null || batchCmd.Commands.Count == 0)
                 {
