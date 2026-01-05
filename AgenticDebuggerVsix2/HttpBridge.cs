@@ -920,6 +920,13 @@ namespace AgenticDebuggerVsix
             SetSnapshot(snap);
         }
 
+        public void OnEnterDesignMode(dbgEventReason Reason)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            var snap = CaptureSnapshot("Design", "Debugging stopped");
+            SetSnapshot(snap);
+        }
+
         private DebuggerSnapshot CaptureSnapshot(string mode, string? exception)
         {
             ThreadHelper.ThrowIfNotOnUIThread();

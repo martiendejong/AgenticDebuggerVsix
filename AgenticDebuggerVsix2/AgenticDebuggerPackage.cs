@@ -45,6 +45,7 @@ namespace AgenticDebuggerVsix
                         {
                             dbgEvents.OnEnterBreakMode += _bridge.OnEnterBreakMode;
                             dbgEvents.OnEnterRunMode += _bridge.OnEnterRunMode;
+                            dbgEvents.OnEnterDesignMode += _bridge.OnEnterDesignMode;
                             dbgEvents.OnExceptionThrown += _bridge.OnExceptionThrown;
                         }
                     }
