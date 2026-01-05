@@ -130,8 +130,80 @@ namespace AgenticDebuggerVsix
     {
         [JsonProperty("name")]
         public string Name { get; set; } = "";
-        
+
         [JsonProperty("guid")]
         public string? Guid { get; set; }
+    }
+
+    public sealed class Metrics
+    {
+        [JsonProperty("startTime")]
+        public DateTime StartTime { get; set; }
+
+        [JsonProperty("uptime")]
+        public string Uptime { get; set; } = "";
+
+        [JsonProperty("totalRequests")]
+        public long TotalRequests { get; set; }
+
+        [JsonProperty("totalErrors")]
+        public long TotalErrors { get; set; }
+
+        [JsonProperty("averageResponseTimeMs")]
+        public double AverageResponseTimeMs { get; set; }
+
+        [JsonProperty("activeWebSocketConnections")]
+        public int ActiveWebSocketConnections { get; set; }
+
+        [JsonProperty("endpointCounts")]
+        public Dictionary<string, long> EndpointCounts { get; set; } = new();
+
+        [JsonProperty("commandCounts")]
+        public Dictionary<string, long> CommandCounts { get; set; } = new();
+
+        [JsonProperty("instanceCount")]
+        public int InstanceCount { get; set; }
+    }
+
+    public sealed class HealthStatus
+    {
+        [JsonProperty("status")]
+        public string Status { get; set; } = ""; // OK, Degraded, Down
+
+        [JsonProperty("uptime")]
+        public string Uptime { get; set; } = "";
+
+        [JsonProperty("timestamp")]
+        public DateTime Timestamp { get; set; }
+
+        [JsonProperty("details")]
+        public Dictionary<string, string> Details { get; set; } = new();
+    }
+
+    public sealed class BatchCommand
+    {
+        [JsonProperty("commands")]
+        public List<AgentCommand> Commands { get; set; } = new();
+
+        [JsonProperty("stopOnError")]
+        public bool StopOnError { get; set; } = true;
+    }
+
+    public sealed class BatchResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("results")]
+        public List<AgentResponse> Results { get; set; } = new();
+
+        [JsonProperty("successCount")]
+        public int SuccessCount { get; set; }
+
+        [JsonProperty("failureCount")]
+        public int FailureCount { get; set; }
+
+        [JsonProperty("totalCommands")]
+        public int TotalCommands { get; set; }
     }
 }

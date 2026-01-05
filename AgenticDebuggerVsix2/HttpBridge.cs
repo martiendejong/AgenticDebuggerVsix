@@ -40,6 +40,9 @@ namespace AgenticDebuggerVsix
         private readonly List<InstanceInfo> _registry = new();
         private readonly HttpClient _httpClient = new(); // For proxying
 
+        // Metrics collection
+        private readonly MetricsCollector _metrics = new();
+
         internal HttpBridge(AsyncPackage package, DTE2 dte)
         {
             _package = package;
@@ -269,15 +272,36 @@ namespace AgenticDebuggerVsix
 
         private void Handle(HttpListenerContext ctx)
         {
-            if (!IsAuthorized(ctx.Request))
-            {
-                RespondText(ctx.Response, "Unauthorized", 401);
-                return;
-            }
-
             var path = ctx.Request.Url?.AbsolutePath?.TrimEnd('/') ?? "";
             if (string.IsNullOrWhiteSpace(path)) path = "/";
             string method = ctx.Request.HttpMethod;
+
+            long elapsedMs = 0;
+            bool isError = false;
+
+            using (new RequestTimer(ms => elapsedMs = ms))
+            {
+                try
+                {
+                    if (!IsAuthorized(ctx.Request))
+                    {
+                        RespondText(ctx.Response, "Unauthorized", 401);
+                        isError = true;
+                        return;
+                    }
+
+                    HandleRequest(ctx, path, method, out isError);
+                }
+                finally
+                {
+                    _metrics.RecordRequest(path, elapsedMs, isError);
+                }
+            }
+        }
+
+        private void HandleRequest(HttpListenerContext ctx, string path, string method, out bool isError)
+        {
+            isError = false;
 
             if (method == "GET" && path == "/")
             {
@@ -294,6 +318,24 @@ namespace AgenticDebuggerVsix
             if (method == "GET" && path == "/swagger.json")
             {
                 RespondJson(ctx.Response, GetSwaggerJson(), 200);
+                return;
+            }
+
+            // Metrics and health endpoints
+            if (method == "GET" && path == "/metrics")
+            {
+                int instanceCount = 0;
+                lock(_registry) { instanceCount = _registry.Count; }
+                var metrics = _metrics.GetMetrics(instanceCount);
+                RespondJson(ctx.Response, metrics, 200);
+                return;
+            }
+
+            if (method == "GET" && path == "/health")
+            {
+                var health = _metrics.GetHealth();
+                int statusCode = health.Status == "OK" ? 200 : health.Status == "Degraded" ? 503 : 503;
+                RespondJson(ctx.Response, health, statusCode);
                 return;
             }
 
@@ -398,10 +440,14 @@ namespace AgenticDebuggerVsix
 
                 if (cmd == null || string.IsNullOrWhiteSpace(cmd.Action))
                 {
+                    isError = true;
                     RespondJson(ctx.Response, new AgentResponse { Ok = false, Message = "Invalid command JSON" }, 400);
                     return;
                 }
-                
+
+                // Record command metric
+                _metrics.RecordCommand(cmd.Action);
+
                 // Proxy check
                 if (!string.IsNullOrEmpty(cmd.InstanceId) && cmd.InstanceId != _myId)
                 {
@@ -410,8 +456,9 @@ namespace AgenticDebuggerVsix
                         ProxyRequest(ctx, cmd.InstanceId, "POST", "/command", body);
                         return;
                     }
-                    else 
+                    else
                     {
+                        isError = true;
                         RespondJson(ctx.Response, new AgentResponse { Ok=false, Message="I am not Primary, cannot proxy." }, 400);
                         return;
                     }
@@ -421,11 +468,37 @@ namespace AgenticDebuggerVsix
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     var result = Execute(cmd);
+                    if (!result.Ok) isError = true;
                     RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                 });
                 return;
             }
 
+            // Batch command endpoint
+            if (method == "POST" && path == "/batch")
+            {
+                var body = ReadBody(ctx.Request);
+                BatchCommand? batchCmd = null;
+                try { batchCmd = JsonConvert.DeserializeObject<BatchCommand>(body); } catch { }
+
+                if (batchCmd == null || batchCmd.Commands == null || batchCmd.Commands.Count == 0)
+                {
+                    isError = true;
+                    RespondJson(ctx.Response, new BatchResponse { Ok = false }, 400);
+                    return;
+                }
+
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    var batchResult = ExecuteBatch(batchCmd);
+                    if (!batchResult.Ok) isError = true;
+                    RespondJson(ctx.Response, batchResult, batchResult.Ok ? 200 : 400);
+                });
+                return;
+            }
+
+            isError = true;
             RespondText(ctx.Response, "Not found", 404);
         }
         
@@ -556,6 +629,42 @@ namespace AgenticDebuggerVsix
             var apiKey = req.Headers[ApiKeyHeader];
             if (string.IsNullOrEmpty(apiKey)) apiKey = DefaultApiKey;
             return string.Equals(apiKey, DefaultApiKey, StringComparison.Ordinal);
+        }
+
+        private BatchResponse ExecuteBatch(BatchCommand batchCmd)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var response = new BatchResponse
+            {
+                TotalCommands = batchCmd.Commands.Count,
+                Results = new List<AgentResponse>()
+            };
+
+            foreach (var cmd in batchCmd.Commands)
+            {
+                _metrics.RecordCommand(cmd.Action);
+
+                var result = Execute(cmd);
+                response.Results.Add(result);
+
+                if (result.Ok)
+                {
+                    response.SuccessCount++;
+                }
+                else
+                {
+                    response.FailureCount++;
+                    if (batchCmd.StopOnError)
+                    {
+                        response.Ok = false;
+                        return response;
+                    }
+                }
+            }
+
+            response.Ok = response.FailureCount == 0;
+            return response;
         }
 
         private AgentResponse Execute(AgentCommand cmd)
