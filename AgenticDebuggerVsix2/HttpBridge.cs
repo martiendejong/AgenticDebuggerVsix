@@ -569,6 +569,29 @@ namespace AgenticDebuggerVsix
                 return;
             }
 
+            // Configure endpoint
+            if (method == "POST" && path == "/configure")
+            {
+                ConfigureRequest? config = null;
+                try { config = JsonConvert.DeserializeObject<ConfigureRequest>(requestBody); } catch { }
+
+                if (config == null)
+                {
+                    isError = true;
+                    RespondJson(ctx.Response, new ConfigureResponse { Ok = false, Message = "Invalid configuration JSON" }, 400);
+                    return;
+                }
+
+                ThreadHelper.JoinableTaskFactory.Run(async () =>
+                {
+                    await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                    var configResult = ApplyConfiguration(config);
+                    if (!configResult.Ok) isError = true;
+                    RespondJson(ctx.Response, configResult, configResult.Ok ? 200 : 400);
+                });
+                return;
+            }
+
             isError = true;
             RespondText(ctx.Response, "Not found", 404);
         }
@@ -735,6 +758,87 @@ namespace AgenticDebuggerVsix
             }
 
             response.Ok = response.FailureCount == 0;
+            return response;
+        }
+
+        private ConfigureResponse ApplyConfiguration(ConfigureRequest config)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            var response = new ConfigureResponse
+            {
+                AppliedMode = config.Mode,
+                Settings = new Dictionary<string, string>()
+            };
+
+            try
+            {
+                if (config.Mode.Equals("agent", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Agent mode: Minimize blocking UI operations
+
+                    // Suppress build UI
+                    if (config.SuppressWarnings)
+                    {
+                        try
+                        {
+                            _dte.Solution.SolutionBuild.SuppressUI = true;
+                            response.Settings["SuppressBuildUI"] = "true";
+                        }
+                        catch (Exception ex)
+                        {
+                            response.Settings["SuppressBuildUI"] = $"failed: {ex.Message}";
+                        }
+                    }
+
+                    // Auto-save documents
+                    if (config.AutoSave)
+                    {
+                        try
+                        {
+                            // Set auto-load changed files
+                            var props = _dte.Properties["Environment", "Documents"];
+                            if (props != null)
+                            {
+                                props.Item("AutoloadChangedFiles").Value = true;
+                                response.Settings["AutoloadChangedFiles"] = "true";
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            response.Settings["AutoloadChangedFiles"] = $"failed: {ex.Message}";
+                        }
+                    }
+
+                    response.Ok = true;
+                    response.Message = "Agent mode configured successfully";
+                }
+                else if (config.Mode.Equals("human", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Human mode: Restore normal behavior
+
+                    try
+                    {
+                        _dte.Solution.SolutionBuild.SuppressUI = false;
+                        response.Settings["SuppressBuildUI"] = "false";
+                    }
+                    catch { }
+
+                    response.Ok = true;
+                    response.Message = "Human mode configured successfully";
+                }
+                else
+                {
+                    response.Ok = false;
+                    response.Message = $"Unknown mode: {config.Mode}. Use 'agent' or 'human'.";
+                }
+            }
+            catch (Exception ex)
+            {
+                response.Ok = false;
+                response.Message = $"Configuration failed: {ex.Message}";
+            }
+
             return response;
         }
 

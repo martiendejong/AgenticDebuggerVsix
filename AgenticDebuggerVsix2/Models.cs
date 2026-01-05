@@ -206,4 +206,32 @@ namespace AgenticDebuggerVsix
         [JsonProperty("totalCommands")]
         public int TotalCommands { get; set; }
     }
+
+    public sealed class ConfigureRequest
+    {
+        [JsonProperty("mode")]
+        public string Mode { get; set; } = "human"; // "agent" or "human"
+
+        [JsonProperty("suppressWarnings")]
+        public bool SuppressWarnings { get; set; } = false;
+
+        [JsonProperty("autoSave")]
+        public bool AutoSave { get; set; } = false;
+    }
+
+    public sealed class ConfigureResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; } = "";
+
+        [JsonProperty("appliedMode")]
+        public string AppliedMode { get; set; } = "";
+
+        [JsonProperty("settings")]
+        public Dictionary<string, string> Settings { get; set; } = new();
+    }
 }
+
