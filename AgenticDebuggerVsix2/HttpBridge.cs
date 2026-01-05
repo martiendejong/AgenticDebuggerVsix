@@ -46,11 +46,15 @@ namespace AgenticDebuggerVsix
         // Request logging
         private readonly RequestLogger _logger = new();
 
+        // WebSocket support
+        private WebSocketHandler _wsHandler;
+
         internal HttpBridge(AsyncPackage package, DTE2 dte)
         {
             _package = package;
             _dte = dte;
             _myId = Guid.NewGuid().ToString("N");
+            _wsHandler = new WebSocketHandler(_metrics);
         }
 
         public void Start()
@@ -124,7 +128,9 @@ namespace AgenticDebuggerVsix
             _running = false;
             try { _listener?.Stop(); } catch { }
             try { _listener?.Close(); } catch { }
-            
+
+            try { _wsHandler?.CloseAll(); } catch { }
+
             if (_isPrimary)
             {
                 DeleteDiscoveryFile();
@@ -323,6 +329,21 @@ namespace AgenticDebuggerVsix
         private void HandleRequest(HttpListenerContext ctx, string path, string method, string requestBody, out bool isError)
         {
             isError = false;
+
+            // WebSocket upgrade
+            if (ctx.Request.IsWebSocketRequest && path == "/ws")
+            {
+                // Handle WebSocket asynchronously - don't block HTTP thread
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _wsHandler.HandleWebSocketRequest(ctx);
+                    }
+                    catch (Exception) { }
+                });
+                return;
+            }
 
             if (method == "GET" && path == "/")
             {
@@ -904,6 +925,7 @@ namespace AgenticDebuggerVsix
             ThreadHelper.ThrowIfNotOnUIThread();
             var snap = CaptureSnapshot("Break", null);
             SetSnapshot(snap);
+            _wsHandler?.BroadcastStateChange(snap);
         }
 
         public void OnEnterRunMode(dbgEventReason Reason)
@@ -911,6 +933,7 @@ namespace AgenticDebuggerVsix
             ThreadHelper.ThrowIfNotOnUIThread();
             var snap = CaptureSnapshot("Run", null);
             SetSnapshot(snap);
+            _wsHandler?.BroadcastStateChange(snap);
         }
 
         public void OnExceptionThrown(string ExceptionType, string Name, int Code, string Description, ref dbgExceptionAction ExceptionAction)
@@ -918,6 +941,7 @@ namespace AgenticDebuggerVsix
             ThreadHelper.ThrowIfNotOnUIThread();
             var snap = CaptureSnapshot("Break", $"{ExceptionType}: {Description}".Trim());
             SetSnapshot(snap);
+            _wsHandler?.BroadcastStateChange(snap);
         }
 
         public void OnEnterDesignMode(dbgEventReason Reason)
@@ -925,6 +949,7 @@ namespace AgenticDebuggerVsix
             ThreadHelper.ThrowIfNotOnUIThread();
             var snap = CaptureSnapshot("Design", "Debugging stopped");
             SetSnapshot(snap);
+            _wsHandler?.BroadcastStateChange(snap);
         }
 
         private DebuggerSnapshot CaptureSnapshot(string mode, string? exception)
