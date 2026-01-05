@@ -233,5 +233,198 @@ namespace AgenticDebuggerVsix
         [JsonProperty("settings")]
         public Dictionary<string, string> Settings { get; set; } = new();
     }
+
+    // Roslyn Code Analysis Models
+    public sealed class SymbolInfo
+    {
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("kind")]
+        public string Kind { get; set; } = ""; // Class, Method, Property, Field, etc.
+
+        [JsonProperty("containerName")]
+        public string? ContainerName { get; set; }
+
+        [JsonProperty("file")]
+        public string? File { get; set; }
+
+        [JsonProperty("line")]
+        public int? Line { get; set; }
+
+        [JsonProperty("column")]
+        public int? Column { get; set; }
+
+        [JsonProperty("summary")]
+        public string? Summary { get; set; } // XML documentation summary
+    }
+
+    public sealed class CodeLocation
+    {
+        [JsonProperty("file")]
+        public string File { get; set; } = "";
+
+        [JsonProperty("line")]
+        public int Line { get; set; }
+
+        [JsonProperty("column")]
+        public int Column { get; set; }
+
+        [JsonProperty("endLine")]
+        public int? EndLine { get; set; }
+
+        [JsonProperty("endColumn")]
+        public int? EndColumn { get; set; }
+    }
+
+    public sealed class SymbolSearchRequest
+    {
+        [JsonProperty("query")]
+        public string Query { get; set; } = "";
+
+        [JsonProperty("kind")]
+        public string? Kind { get; set; } // Filter by symbol kind
+
+        [JsonProperty("maxResults")]
+        public int MaxResults { get; set; } = 50;
+    }
+
+    public sealed class SymbolSearchResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("results")]
+        public List<SymbolInfo> Results { get; set; } = new();
+
+        [JsonProperty("totalFound")]
+        public int TotalFound { get; set; }
+    }
+
+    public sealed class DefinitionRequest
+    {
+        [JsonProperty("file")]
+        public string File { get; set; } = "";
+
+        [JsonProperty("line")]
+        public int Line { get; set; }
+
+        [JsonProperty("column")]
+        public int Column { get; set; }
+    }
+
+    public sealed class DefinitionResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; } = "";
+
+        [JsonProperty("symbol")]
+        public SymbolInfo? Symbol { get; set; }
+
+        [JsonProperty("location")]
+        public CodeLocation? Location { get; set; }
+    }
+
+    public sealed class ReferencesRequest
+    {
+        [JsonProperty("file")]
+        public string File { get; set; } = "";
+
+        [JsonProperty("line")]
+        public int Line { get; set; }
+
+        [JsonProperty("column")]
+        public int Column { get; set; }
+
+        [JsonProperty("includeDeclaration")]
+        public bool IncludeDeclaration { get; set; } = true;
+    }
+
+    public sealed class ReferencesResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; } = "";
+
+        [JsonProperty("symbol")]
+        public SymbolInfo? Symbol { get; set; }
+
+        [JsonProperty("references")]
+        public List<CodeLocation> References { get; set; } = new();
+
+        [JsonProperty("totalCount")]
+        public int TotalCount { get; set; }
+    }
+
+    public sealed class DocumentOutlineResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("file")]
+        public string File { get; set; } = "";
+
+        [JsonProperty("symbols")]
+        public List<OutlineSymbol> Symbols { get; set; } = new();
+    }
+
+    public sealed class OutlineSymbol
+    {
+        [JsonProperty("name")]
+        public string Name { get; set; } = "";
+
+        [JsonProperty("kind")]
+        public string Kind { get; set; } = "";
+
+        [JsonProperty("line")]
+        public int Line { get; set; }
+
+        [JsonProperty("column")]
+        public int Column { get; set; }
+
+        [JsonProperty("children")]
+        public List<OutlineSymbol> Children { get; set; } = new();
+    }
+
+    public sealed class SemanticInfoRequest
+    {
+        [JsonProperty("file")]
+        public string File { get; set; } = "";
+
+        [JsonProperty("line")]
+        public int Line { get; set; }
+
+        [JsonProperty("column")]
+        public int Column { get; set; }
+    }
+
+    public sealed class SemanticInfoResponse
+    {
+        [JsonProperty("ok")]
+        public bool Ok { get; set; }
+
+        [JsonProperty("message")]
+        public string Message { get; set; } = "";
+
+        [JsonProperty("symbol")]
+        public SymbolInfo? Symbol { get; set; }
+
+        [JsonProperty("type")]
+        public string? Type { get; set; }
+
+        [JsonProperty("documentation")]
+        public string? Documentation { get; set; }
+
+        [JsonProperty("isLocal")]
+        public bool IsLocal { get; set; }
+
+        [JsonProperty("isParameter")]
+        public bool IsParameter { get; set; }
+    }
 }
 

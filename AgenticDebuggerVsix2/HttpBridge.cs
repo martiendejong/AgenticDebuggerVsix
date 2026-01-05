@@ -49,12 +49,20 @@ namespace AgenticDebuggerVsix
         // WebSocket support
         private WebSocketHandler _wsHandler;
 
+        // Roslyn code analysis
+        private RoslynBridge _roslynBridge;
+
         internal HttpBridge(AsyncPackage package, DTE2 dte)
         {
             _package = package;
             _dte = dte;
             _myId = Guid.NewGuid().ToString("N");
             _wsHandler = new WebSocketHandler(_metrics);
+        }
+
+        internal void SetRoslynBridge(RoslynBridge roslynBridge)
+        {
+            _roslynBridge = roslynBridge;
         }
 
         public void Start()
@@ -590,6 +598,121 @@ namespace AgenticDebuggerVsix
                     RespondJson(ctx.Response, configResult, configResult.Ok ? 200 : 400);
                 });
                 return;
+            }
+
+            // Roslyn Code Analysis Endpoints
+            if (_roslynBridge != null)
+            {
+                // Symbol search
+                if (method == "POST" && path == "/code/symbols")
+                {
+                    SymbolSearchRequest? searchReq = null;
+                    try { searchReq = JsonConvert.DeserializeObject<SymbolSearchRequest>(requestBody); } catch { }
+
+                    if (searchReq == null)
+                    {
+                        isError = true;
+                        RespondJson(ctx.Response, new SymbolSearchResponse { Ok = false }, 400);
+                        return;
+                    }
+
+                    Task.Run(async () =>
+                    {
+                        var result = await _roslynBridge.SearchSymbolsAsync(searchReq);
+                        if (!result.Ok) isError = true;
+                        RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
+                    }).Wait();
+                    return;
+                }
+
+                // Go to definition
+                if (method == "POST" && path == "/code/definition")
+                {
+                    DefinitionRequest? defReq = null;
+                    try { defReq = JsonConvert.DeserializeObject<DefinitionRequest>(requestBody); } catch { }
+
+                    if (defReq == null)
+                    {
+                        isError = true;
+                        RespondJson(ctx.Response, new DefinitionResponse { Ok = false, Message = "Invalid request" }, 400);
+                        return;
+                    }
+
+                    Task.Run(async () =>
+                    {
+                        var result = await _roslynBridge.GoToDefinitionAsync(defReq);
+                        if (!result.Ok) isError = true;
+                        RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
+                    }).Wait();
+                    return;
+                }
+
+                // Find references
+                if (method == "POST" && path == "/code/references")
+                {
+                    ReferencesRequest? refReq = null;
+                    try { refReq = JsonConvert.DeserializeObject<ReferencesRequest>(requestBody); } catch { }
+
+                    if (refReq == null)
+                    {
+                        isError = true;
+                        RespondJson(ctx.Response, new ReferencesResponse { Ok = false, Message = "Invalid request" }, 400);
+                        return;
+                    }
+
+                    Task.Run(async () =>
+                    {
+                        var result = await _roslynBridge.FindReferencesAsync(refReq);
+                        if (!result.Ok) isError = true;
+                        RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
+                    }).Wait();
+                    return;
+                }
+
+                // Document outline
+                if (method == "GET" && path.StartsWith("/code/outline"))
+                {
+                    // Parse file from query string
+                    var query = ctx.Request.Url.Query;
+                    var filePath = System.Web.HttpUtility.ParseQueryString(query).Get("file");
+
+                    if (string.IsNullOrEmpty(filePath))
+                    {
+                        isError = true;
+                        RespondJson(ctx.Response, new DocumentOutlineResponse { Ok = false }, 400);
+                        return;
+                    }
+
+                    Task.Run(async () =>
+                    {
+                        var result = await _roslynBridge.GetDocumentOutlineAsync(filePath);
+                        if (!result.Ok) isError = true;
+                        RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
+                    }).Wait();
+                    return;
+                }
+
+                // Semantic info
+                if (method == "POST" && path == "/code/semantic")
+                {
+                    SemanticInfoRequest? semReq = null;
+                    try { semReq = JsonConvert.DeserializeObject<SemanticInfoRequest>(requestBody); } catch { }
+
+                    if (semReq == null)
+                    {
+                        isError = true;
+                        RespondJson(ctx.Response, new SemanticInfoResponse { Ok = false, Message = "Invalid request" }, 400);
+                        return;
+                    }
+
+                    Task.Run(async () =>
+                    {
+                        var result = await _roslynBridge.GetSemanticInfoAsync(semReq);
+                        if (!result.Ok) isError = true;
+                        RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
+                    }).Wait();
+                    return;
+                }
             }
 
             isError = true;

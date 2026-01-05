@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.LanguageServices;
 
 namespace AgenticDebuggerVsix
 {
@@ -30,6 +31,21 @@ namespace AgenticDebuggerVsix
             // Start bridge
             _bridge = new HttpBridge(this, Dte);
             _bridge.Start();
+
+            // Initialize Roslyn integration
+            try
+            {
+                var workspace = await GetServiceAsync(typeof(VisualStudioWorkspace)) as VisualStudioWorkspace;
+                if (workspace != null)
+                {
+                    var roslynBridge = new RoslynBridge(workspace);
+                    _bridge.SetRoslynBridge(roslynBridge);
+                }
+            }
+            catch
+            {
+                // Roslyn integration optional - bridge still works without it
+            }
 
             // Wire debugger events after VS startup completes so debugger subsystem exists
             try
