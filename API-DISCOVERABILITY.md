@@ -73,10 +73,11 @@ Headers: X-Api-Key: dev
 
 ### Complete Endpoint List
 
-**Core** (3 endpoints):
+**Core** (4 endpoints):
 - `GET /` - API status check
 - `GET /docs` - HTML documentation
 - `GET /swagger.json` - OpenAPI specification
+- `GET /status` - Extension status and permissions
 
 **Debugger** (3 endpoints):
 - `GET /state` - Get debugger state
@@ -110,7 +111,66 @@ Headers: X-Api-Key: dev
 **WebSocket** (1 endpoint):
 - `WS /ws` - Real-time push notifications
 
-**Total**: 20+ endpoints fully documented
+**Total**: 21+ endpoints fully documented
+
+### Permission Discovery via /status
+
+**NEW in v1.1**: AI agents can discover their permissions programmatically:
+
+```bash
+GET http://localhost:27183/status
+Headers: X-Api-Key: dev
+```
+
+**Returns:**
+```json
+{
+  "version": "1.1",
+  "extensionName": "Agentic Debugger Bridge",
+  "currentMode": "Design",
+  "isPrimary": true,
+  "port": 27183,
+  "permissions": {
+    "codeAnalysis": true,
+    "observability": true,
+    "debugControl": false,
+    "buildSystem": false,
+    "breakpoints": false,
+    "configuration": false
+  },
+  "authentication": {
+    "headerName": "X-Api-Key",
+    "requiresKey": true
+  },
+  "capabilities": [
+    "websocket",
+    "batch-commands",
+    "roslyn-analysis",
+    "multi-instance",
+    "real-time-notifications"
+  ]
+}
+```
+
+**Why This Matters for AI Agents:**
+- Agents can **adapt** their behavior based on available permissions
+- Agents can **inform users** what permissions they need
+- Agents can **gracefully degrade** when permissions are restricted
+- Agents can **validate** before attempting operations
+
+**Example Agent Logic:**
+```python
+status = requests.get(f"{base_url}/status", headers=headers).json()
+
+if status["permissions"]["debugControl"]:
+    # Can control debugger
+    start_debugging()
+else:
+    # Inform user
+    print("Debug Control permission is disabled. Please enable it in Tools > Options.")
+    # Fall back to read-only operations
+    analyze_code_only()
+```
 
 ### Complete Data Model Specifications
 

@@ -52,10 +52,14 @@ namespace AgenticDebuggerVsix
         // Roslyn code analysis
         private RoslynBridge _roslynBridge;
 
-        internal HttpBridge(AsyncPackage package, DTE2 dte)
+        // Permissions
+        private PermissionsModel _permissions;
+
+        internal HttpBridge(AsyncPackage package, DTE2 dte, PermissionsModel permissions)
         {
             _package = package;
             _dte = dte;
+            _permissions = permissions ?? new PermissionsModel();
             _myId = Guid.NewGuid().ToString("N");
             _wsHandler = new WebSocketHandler(_metrics);
         }
@@ -338,6 +342,31 @@ namespace AgenticDebuggerVsix
         {
             isError = false;
 
+            // Permission check (after auth, before routing)
+            // Extract action from request body for command/batch endpoints
+            string action = null;
+            if ((path == "/command" || path == "/batch") && method == "POST" && !string.IsNullOrEmpty(requestBody))
+            {
+                try
+                {
+                    var cmdObj = JsonConvert.DeserializeObject<dynamic>(requestBody);
+                    action = cmdObj?.action ?? cmdObj?.commands?[0]?.action;
+                }
+                catch { }
+            }
+
+            if (!IsPermissionGranted(method, path, action, out string permissionError))
+            {
+                isError = true;
+                var response = new AgentResponse
+                {
+                    Ok = false,
+                    Message = permissionError ?? "Permission denied"
+                };
+                RespondJson(ctx.Response, response, 403);
+                return;
+            }
+
             // WebSocket upgrade
             if (ctx.Request.IsWebSocketRequest && path == "/ws")
             {
@@ -427,7 +456,62 @@ namespace AgenticDebuggerVsix
                 RespondJson(ctx.Response, new AgentResponse { Ok = true, Message = "state", Snapshot = SafeSnapshot() }, 200);
                 return;
             }
-            
+
+            // Status endpoint - shows permissions and basic info
+            if (method == "GET" && path == "/status")
+            {
+                var mode = "Unknown";
+                try
+                {
+                    ThreadHelper.JoinableTaskFactory.Run(async () => {
+                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                        var debugMode = _dte.Debugger.CurrentMode;
+                        mode = debugMode switch
+                        {
+                            dbgDebugMode.dbgBreakMode => "Break",
+                            dbgDebugMode.dbgRunMode => "Run",
+                            dbgDebugMode.dbgDesignMode => "Design",
+                            _ => "Unknown"
+                        };
+                    });
+                }
+                catch { }
+
+                var status = new
+                {
+                    version = "1.1",
+                    extensionName = "Agentic Debugger Bridge",
+                    currentMode = mode,
+                    isPrimary = _isPrimary,
+                    port = _localPort,
+                    permissions = new
+                    {
+                        codeAnalysis = _permissions.AllowCodeAnalysis,
+                        observability = _permissions.AllowObservability,
+                        debugControl = _permissions.AllowDebugControl,
+                        buildSystem = _permissions.AllowBuildSystem,
+                        breakpoints = _permissions.AllowBreakpoints,
+                        configuration = _permissions.AllowConfiguration
+                    },
+                    authentication = new
+                    {
+                        headerName = ApiKeyHeader,
+                        requiresKey = true
+                    },
+                    capabilities = new[]
+                    {
+                        "websocket",
+                        "batch-commands",
+                        "roslyn-analysis",
+                        "multi-instance",
+                        "real-time-notifications"
+                    }
+                };
+
+                RespondJson(ctx.Response, status, 200);
+                return;
+            }
+
             // New Observability Endpoints
             if (method == "GET" && path == "/errors")
             {
@@ -846,6 +930,18 @@ namespace AgenticDebuggerVsix
             var apiKey = req.Headers[ApiKeyHeader];
             if (string.IsNullOrEmpty(apiKey)) apiKey = DefaultApiKey;
             return string.Equals(apiKey, DefaultApiKey, StringComparison.Ordinal);
+        }
+
+        private bool IsPermissionGranted(string method, string path, string action, out string errorMessage)
+        {
+            if (_permissions.IsEndpointAllowed(method, path, action))
+            {
+                errorMessage = null;
+                return true;
+            }
+
+            errorMessage = _permissions.GetPermissionDeniedMessage(method, path, action);
+            return false;
         }
 
         private BatchResponse ExecuteBatch(BatchCommand batchCmd)
@@ -1338,7 +1434,7 @@ li{margin:5px 0}
 .method-ws{color:#8764b8}
 </style></head><body>
 <h1>🤖 Agentic Debugger Bridge API</h1>
-<p><strong>Version:</strong> 1.0 | <strong>Port:</strong> 27183 (Primary) | <strong>Protocol:</strong> HTTP + WebSocket</p>
+<p><strong>Version:</strong> 1.1 | <strong>Port:</strong> 27183 (Primary) | <strong>Protocol:</strong> HTTP + WebSocket</p>
 
 <h2>📡 Discovery</h2>
 <p>The bridge writes <code>%TEMP%\agentic_debugger.json</code> with connection details:</p>
@@ -1352,9 +1448,24 @@ li{margin:5px 0}
 <li><span class=""method-get"">GET</span> <span class=""endpoint"">/</span> - API status check</li>
 <li><span class=""method-get"">GET</span> <span class=""endpoint"">/docs</span> - This documentation</li>
 <li><span class=""method-get"">GET</span> <span class=""endpoint"">/swagger.json</span> - OpenAPI 3.0 specification</li>
+<li><span class=""method-get"">GET</span> <span class=""endpoint"">/status</span> - Get version, mode, and enabled permissions</li>
 <li><span class=""method-get"">GET</span> <span class=""endpoint"">/state</span> - Get debugger state (mode, stack, locals, file/line)</li>
 <li><span class=""method-get"">GET</span> <span class=""endpoint"">/instances</span> - List all VS instances (Primary only)</li>
 </ul>
+
+<h2>🔒 Permissions & Security</h2>
+<p>The API uses a permission-based security model. By default, only <strong>read-only</strong> operations are enabled.</p>
+<h3>Default Permissions</h3>
+<ul>
+<li>✅ <strong>Code Analysis</strong> - Semantic search, definitions, references (Enabled)</li>
+<li>✅ <strong>Observability</strong> - Read state, metrics, errors, logs (Enabled)</li>
+<li>❌ <strong>Debug Control</strong> - Start/stop, step, control execution (Disabled)</li>
+<li>❌ <strong>Build System</strong> - Trigger builds, rebuilds, clean (Disabled)</li>
+<li>❌ <strong>Breakpoints</strong> - Set/clear breakpoints (Disabled)</li>
+<li>❌ <strong>Configuration</strong> - Change settings, eval expressions (Disabled)</li>
+</ul>
+<p>Configure permissions in: <strong>Tools > Options > Agentic Debugger > Permissions</strong></p>
+<p>Check current permissions: <code>GET /status</code></p>
 
 <h2>🐛 Debugger Control</h2>
 <h3>POST /command</h3>
@@ -1441,8 +1552,8 @@ li{margin:5px 0}
                 openapi = "3.0.1",
                 info = new {
                     title = "Agentic Debugger Bridge API",
-                    version = "1.0.0",
-                    description = "HTTP + WebSocket API for AI agents to control Visual Studio debugger, build system, and perform semantic code analysis via Roslyn"
+                    version = "1.1.0",
+                    description = "HTTP + WebSocket API for AI agents to control Visual Studio debugger, build system, and perform semantic code analysis via Roslyn. Uses permission-based security model with safe defaults (read-only operations enabled, write operations disabled)."
                 },
                 servers = new[] {
                     new { url = "http://localhost:27183", description = "Primary Bridge (default port)" }
@@ -1653,6 +1764,7 @@ li{margin:5px 0}
                     ["/"] = new { get = new { summary = "API status check", tags = new[] { "Core" }, responses = new { _200 = new { description = "OK" } } } },
                     ["/docs"] = new { get = new { summary = "API documentation (HTML)", tags = new[] { "Core" }, responses = new { _200 = new { description = "HTML documentation" } } } },
                     ["/swagger.json"] = new { get = new { summary = "OpenAPI specification", tags = new[] { "Core" }, responses = new { _200 = new { description = "OpenAPI 3.0 JSON" } } } },
+                    ["/status"] = new { get = new { summary = "Get extension status and permissions", tags = new[] { "Core" }, description = "Returns extension version, current debugger mode, and enabled permission categories. Always allowed regardless of permissions.", responses = new { _200 = new { description = "Status information", content = new { application_json = new { schema = new { type = "object" } } } } } } },
                     ["/state"] = new { get = new { summary = "Get debugger state", tags = new[] { "Debugger" }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } } } },
                     ["/command"] = new { post = new { summary = "Execute debugger/build command", tags = new[] { "Debugger" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentCommand" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/AgentResponse" } } } } } } },
                     ["/batch"] = new { post = new { summary = "Execute multiple commands (10x faster)", tags = new[] { "Debugger" }, requestBody = new { required = true, content = new { application_json = new { schema = new { @ref = "#/components/schemas/BatchCommand" } } } }, responses = new { _200 = new { description = "OK", content = new { application_json = new { schema = new { @ref = "#/components/schemas/BatchResponse" } } } } } } },

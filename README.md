@@ -21,6 +21,64 @@ The **Agentic Debugger Bridge** allows external tools (like AI coding agents) to
     *   **Request Logging**: Complete audit trail of all API requests/responses.
 *   **Discovery Mechanism**: Automatically writes connection info (Port/PID) to `%TEMP%\agentic_debugger.json` so agents can find it without configuration.
 
+## 🔒 Security & Permissions
+
+The Agentic Debugger uses a **permission-based security model** to control what AI agents can access.
+
+### Permission Categories
+
+**Read-Only Permissions (Safe - Enabled by Default):**
+- ✅ **Code Analysis**: Semantic search, go-to-definition, find references (Roslyn)
+- ✅ **Observability**: Read debugger state, metrics, errors, logs, project info
+
+**Write Permissions (Require Caution - Disabled by Default):**
+- ⚠️ **Debug Control**: Start/stop debugging, step through code, control execution
+- ⚠️ **Build System**: Trigger builds, rebuilds, clean operations
+- ⚠️ **Breakpoints**: Set and clear breakpoints in code
+- ⚠️ **Configuration**: Change VS settings, evaluate expressions, add watches
+
+### Configuring Permissions
+
+1. Open Visual Studio
+2. Go to **Tools > Options**
+3. Navigate to **Agentic Debugger > Permissions**
+4. Check/uncheck permissions as needed
+5. Click **OK** to apply
+
+### Checking Current Permissions
+
+AI agents can query the `/status` endpoint:
+
+```bash
+curl -H "X-Api-Key: dev" http://localhost:27183/status
+```
+
+Response includes:
+```json
+{
+  "version": "1.1",
+  "permissions": {
+    "codeAnalysis": true,
+    "observability": true,
+    "debugControl": false,
+    "buildSystem": false,
+    "breakpoints": false,
+    "configuration": false
+  }
+}
+```
+
+### Permission Denied Errors
+
+If an agent tries to use a disabled permission, they'll receive a `403 Forbidden` response:
+
+```json
+{
+  "ok": false,
+  "message": "Debug Control permission is disabled. Enable it in Tools > Options > Agentic Debugger."
+}
+```
+
 ## 🛠️ Usage
 
 ### 1. Installation
@@ -44,6 +102,9 @@ Your AI agent can look for the discovery file to know where to connect:
 Visit **`http://localhost:27183/docs`** for a friendly documentation page, or **`http://localhost:27183/swagger.json`** for the OpenAPI definition.
 
 #### Common Endpoints
+
+**Core:**
+*   `GET /status` - Get extension version, current mode, and enabled permissions.
 
 **State & Debugging:**
 *   `GET /state` - Get current debugger state (Mode, Stack, Locals, File/Line).

@@ -2,9 +2,12 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using EnvDTE;
 using EnvDTE80;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Settings;
+using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.LanguageServices;
 
 namespace AgenticDebuggerVsix
@@ -14,12 +17,19 @@ namespace AgenticDebuggerVsix
     [Guid(PackageGuidString)]
     [ProvideAutoLoad(Microsoft.VisualStudio.Shell.Interop.UIContextGuids80.NoSolution, PackageAutoLoadFlags.BackgroundLoad)]
     [ProvideAutoLoad(Microsoft.VisualStudio.Shell.Interop.UIContextGuids80.SolutionExists, PackageAutoLoadFlags.BackgroundLoad)]
+    [ProvideOptionPage(typeof(PermissionsOptionsPage), "Agentic Debugger", "Permissions", 0, 0, true)]
     public sealed class AgenticDebuggerPackage : AsyncPackage
     {
         public const string PackageGuidString = "1c5b3c47-4d41-40f7-bf8a-cdb6c0f7f9a1";
 
         private HttpBridge? _bridge;
         internal DTE2? Dte { get; private set; }
+
+        internal PermissionsModel GetPermissions()
+        {
+            var optionsPage = (PermissionsOptionsPage)GetDialogPage(typeof(PermissionsOptionsPage));
+            return optionsPage?.GetPermissions() ?? new PermissionsModel();
+        }
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
@@ -29,8 +39,12 @@ namespace AgenticDebuggerVsix
             if (Dte == null) return;
 
             // Start bridge
-            _bridge = new HttpBridge(this, Dte);
+            var permissions = GetPermissions();
+            _bridge = new HttpBridge(this, Dte, permissions);
             _bridge.Start();
+
+            // Show first-run info if needed
+            await ShowFirstRunInfoIfNeededAsync();
 
             // Initialize Roslyn integration
             try
@@ -95,6 +109,77 @@ namespace AgenticDebuggerVsix
             }
             catch { }
             base.Dispose(disposing);
+        }
+
+        private async Task ShowFirstRunInfoIfNeededAsync()
+        {
+            await JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            try
+            {
+                // Check if user has seen welcome message
+                var settingsManager = new ShellSettingsManager(this);
+                var store = settingsManager.GetWritableSettingsStore(SettingsScope.UserSettings);
+
+                const string collectionName = "AgenticDebugger";
+                const string propertyName = "HasSeenWelcome";
+
+                // Create collection if it doesn't exist
+                if (!store.CollectionExists(collectionName))
+                {
+                    store.CreateCollection(collectionName);
+                }
+
+                // Check if welcome has been shown
+                bool hasSeenWelcome = false;
+                if (store.PropertyExists(collectionName, propertyName))
+                {
+                    hasSeenWelcome = store.GetBoolean(collectionName, propertyName);
+                }
+
+                if (!hasSeenWelcome)
+                {
+                    // Show MessageBox (simpler fallback instead of info bar)
+                    ShowPermissionsDialog();
+
+                    // Mark as seen
+                    store.SetBoolean(collectionName, propertyName, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't block initialization if settings fail
+                System.Diagnostics.Debug.WriteLine($"First-run check failed: {ex}");
+            }
+        }
+
+        private void ShowPermissionsDialog()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var result = MessageBox.Show(
+                    "Agentic Debugger requires permission configuration.\n\n" +
+                    "By default, only read-only operations (Code Analysis, Observability) are enabled.\n" +
+                    "To allow the AI agent to control debugging, builds, or breakpoints, please configure permissions.\n\n" +
+                    "Open permissions settings now?",
+                    "Agentic Debugger - First Run",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information
+                );
+
+                if (result == DialogResult.Yes)
+                {
+                    // Open options page
+                    ShowOptionPage(typeof(PermissionsOptionsPage));
+                }
+            }
+            catch (Exception ex)
+            {
+                // Fallback: Just log, don't crash
+                System.Diagnostics.Debug.WriteLine($"Permission dialog failed: {ex}");
+            }
         }
     }
 }
