@@ -44,6 +44,44 @@ This folder contains documentation from completed work sessions. These documents
 
 ---
 
+### SESSION-COMPLETE.md
+**Date**: 2026-01-05
+**Status**: ✅ Quick Wins Session Complete
+**Purpose**: Comprehensive summary of quick wins implementation session (WebSocket, Batch, Logging, Metrics, Configure, OnEnterDesignMode)
+
+**Why Archived**: Session completed successfully. All features implemented, documented, and committed. Work has continued beyond this session with Roslyn integration.
+
+**What Was Implemented**:
+- WebSocket real-time push notifications
+- Batch command execution
+- Request/response logging
+- Metrics and health monitoring
+- Configure endpoint for agent mode
+- OnEnterDesignMode event handler
+- 10 new endpoints, ~2,400 lines of code
+
+**Active Replacement**: STATUS.md shows current status, TOP-10-TODO.md shows remaining work
+
+---
+
+### ROSLYN-COMPLETE.md
+**Date**: 2026-01-05
+**Status**: ✅ Roslyn Integration Complete
+**Purpose**: Comprehensive completion summary for Roslyn Code Analysis integration
+
+**Why Archived**: Roslyn integration completed successfully (5 endpoints, 800+ lines, full documentation). This completion summary served its purpose.
+
+**What Was Implemented**:
+- RoslynBridge.cs (432 lines) with full semantic analysis
+- 5 Roslyn endpoints: /code/symbols, /code/definition, /code/references, /code/outline, /code/semantic
+- 8 new data models for Roslyn features
+- Complete OpenAPI documentation
+- 100x agent capability multiplier
+
+**Active Replacement**: README.md Section 8 documents Roslyn endpoints, STATUS.md shows current capabilities
+
+---
+
 ## When to Reference Archived Docs
 
 **Use implementation-plan-quick-wins.md when**:
@@ -63,18 +101,33 @@ This folder contains documentation from completed work sessions. These documents
 - Seeing granular impact metrics
 - Learning about expert insights applied
 
+**Use SESSION-COMPLETE.md when**:
+- Reviewing the quick wins session (WebSocket, Batch, Logging, Metrics)
+- Understanding the full scope of what was accomplished in that session
+- Seeing comprehensive metrics and impact analysis
+- Learning implementation patterns for multi-feature sessions
+
+**Use ROSLYN-COMPLETE.md when**:
+- Understanding Roslyn integration architecture and design decisions
+- Reviewing complete API specification for code analysis endpoints
+- Learning implementation patterns for semantic analysis features
+- Seeing testing checklist and validation criteria
+
 ---
 
 ## Active Documentation
 
 For current work, refer to these documents in the root folder:
 
+- **TOP-10-TODO.md** - Active todo list with next 10 items to implement
 - **STATUS.md** - Current project status and capabilities
 - **NEXT-STEPS.md** - Next 5 priorities with detailed plans
-- **SESSION-COMPLETE.md** - Comprehensive summary of completed session
 - **README.md** - API reference and usage
+- **API-DISCOVERABILITY.md** - Self-documentation via /docs and /swagger.json
+- **BUILD-VALIDATION.md** - Testing checklist for manual validation
+- **MANUAL-STEPS-REQUIRED.md** - Quick start guide for building in VS 2022
 - **expert-team-analysis.md** - Design concepts (reference)
-- **valuable-improvements.md** - Improvement roadmap (items 1-5 marked complete)
+- **valuable-improvements.md** - Improvement roadmap (items 1-6 marked complete)
 - **expert-group-recommendations.md** - Strategic guidance
 - **handling-blocking-ui-operations.md** - Active guide for UI issues
 
