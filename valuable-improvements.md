@@ -2,10 +2,13 @@
 
 *Ordered by Value/Effort Ratio (Highest ROI at Top)*
 
+**Status**: Items 1-4 completed 2026-01-05. See NEXT-STEPS.md for next priorities.
+
 ---
 
-## 1. **WebSocket Support for Real-Time State Updates** 📡
+## 1. ✅ **WebSocket Support for Real-Time State Updates** 📡 [COMPLETED]
 **Value**: 10/10 | **Effort**: 2/10 | **Ratio**: 5.0
+**Status**: ✅ Implemented in WebSocketHandler.cs, integrated with all debugger events
 
 **Experts**: Stephen Toub, Simon Willison, Harrison Chase
 
@@ -17,8 +20,9 @@
 
 ---
 
-## 2. **Request/Response Logging & Replay** 📝
+## 2. ✅ **Request/Response Logging & Replay** 📝 [COMPLETED]
 **Value**: 9/10 | **Effort**: 2/10 | **Ratio**: 4.5
+**Status**: ✅ Implemented in RequestLogger.cs, endpoints: /logs, /logs/{id}, DELETE /logs
 
 **Experts**: Charity Majors, Mads Kristensen, David McCarter
 
@@ -30,8 +34,9 @@
 
 ---
 
-## 3. **Batch Command Execution** ⚡
+## 3. ✅ **Batch Command Execution** ⚡ [COMPLETED]
 **Value**: 9/10 | **Effort**: 2/10 | **Ratio**: 4.5
+**Status**: ✅ Implemented in HttpBridge.cs, endpoint: POST /batch, models: BatchCommand/BatchResponse
 
 **Experts**: David Fowler, Andrew Lock, Jon Skeet
 
@@ -43,8 +48,9 @@
 
 ---
 
-## 4. **Configuration File Support** ⚙️
+## 4. ✅ **Configuration File Support** ⚙️ [COMPLETED]
 **Value**: 8/10 | **Effort**: 2/10 | **Ratio**: 4.0
+**Status**: ✅ Implemented as POST /configure endpoint with agent/human modes
 
 **Experts**: Kathleen Dollard, David McCarter, Kelsey Hightower
 
@@ -56,8 +62,9 @@
 
 ---
 
-## 5. **Metrics & Health Endpoint** 📊
+## 5. ✅ **Metrics & Health Endpoint** 📊 [COMPLETED]
 **Value**: 8/10 | **Effort**: 2/10 | **Ratio**: 4.0
+**Status**: ✅ Implemented in MetricsCollector.cs, endpoints: /metrics, /health
 
 **Experts**: Charity Majors, Nick Craver, David Fowler
 
