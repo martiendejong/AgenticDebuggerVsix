@@ -52,7 +52,7 @@ namespace AgenticDebuggerVsix
 
                 if (!string.IsNullOrEmpty(pathFilter))
                 {
-                    query = query.Where(e => e.Path.Contains(pathFilter, StringComparison.OrdinalIgnoreCase));
+                    query = query.Where(e => e.Path.IndexOf(pathFilter, StringComparison.OrdinalIgnoreCase) >= 0);
                 }
 
                 if (minStatusCode.HasValue)

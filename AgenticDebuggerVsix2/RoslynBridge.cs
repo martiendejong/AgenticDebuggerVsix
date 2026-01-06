@@ -419,9 +419,19 @@ namespace AgenticDebuggerVsix
 
             try
             {
-                var doc = System.Xml.Linq.XDocument.Parse(xml);
-                var summary = doc.Descendants("summary").FirstOrDefault();
-                return summary?.Value?.Trim();
+                // Simple extraction without System.Xml.Linq dependency
+                var startTag = "<summary>";
+                var endTag = "</summary>";
+                var startIdx = xml.IndexOf(startTag, StringComparison.OrdinalIgnoreCase);
+                var endIdx = xml.IndexOf(endTag, StringComparison.OrdinalIgnoreCase);
+
+                if (startIdx >= 0 && endIdx > startIdx)
+                {
+                    var content = xml.Substring(startIdx + startTag.Length, endIdx - startIdx - startTag.Length);
+                    // Clean up whitespace and newlines
+                    return string.Join(" ", content.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)).Trim();
+                }
+                return null;
             }
             catch
             {

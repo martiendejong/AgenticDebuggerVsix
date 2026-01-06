@@ -340,7 +340,8 @@ namespace AgenticDebuggerVsix
 
         private void HandleRequest(HttpListenerContext ctx, string path, string method, string requestBody, out bool isError)
         {
-            isError = false;
+            isError = false; // Default assignment - will be updated if error occurs
+            bool localIsError = false;
 
             // Permission check (after auth, before routing)
             // Extract action from request body for command/batch endpoints
@@ -357,7 +358,7 @@ namespace AgenticDebuggerVsix
 
             if (!IsPermissionGranted(method, path, action, out string permissionError))
             {
-                isError = true;
+                localIsError = true;
                 var response = new AgentResponse
                 {
                     Ok = false,
@@ -433,7 +434,7 @@ namespace AgenticDebuggerVsix
                 var log = _logger.GetLogById(logId);
                 if (log == null)
                 {
-                    isError = true;
+                    localIsError = true;
                     RespondText(ctx.Response, "Log entry not found", 404);
                 }
                 else
@@ -560,9 +561,10 @@ namespace AgenticDebuggerVsix
             {
                  if (method == "GET" && path == "/instances")
                  {
-                     lock(_registry) { 
+                     lock(_registry) {
                          RespondJson(ctx.Response, _registry, 200);
                      }
+                     isError = localIsError;
                      return;
                  }
                  
@@ -579,9 +581,10 @@ namespace AgenticDebuggerVsix
                              RespondText(ctx.Response, "Registered", 200);
                          } else RespondText(ctx.Response, "Invalid", 400);
                      } catch { RespondText(ctx.Response, "Err", 400); }
+                     isError = localIsError;
                      return;
                  }
-                 
+
                  // Proxy State: /proxy/{id}/...
                  if (path.StartsWith("/proxy/"))
                  {
@@ -592,6 +595,7 @@ namespace AgenticDebuggerVsix
                          var targetId = segments[2];
                          var suffix = "/" + string.Join("/", segments.Skip(3));
                          ProxyRequest(ctx, targetId, method, suffix, method == "POST" ? requestBody : null);
+                         isError = localIsError;
                          return;
                      }
                  }
@@ -604,8 +608,9 @@ namespace AgenticDebuggerVsix
 
                 if (cmd == null || string.IsNullOrWhiteSpace(cmd.Action))
                 {
-                    isError = true;
+                    localIsError = true;
                     RespondJson(ctx.Response, new AgentResponse { Ok = false, Message = "Invalid command JSON" }, 400);
+                    isError = localIsError;
                     return;
                 }
 
@@ -618,23 +623,28 @@ namespace AgenticDebuggerVsix
                     if (_isPrimary)
                     {
                         ProxyRequest(ctx, cmd.InstanceId, "POST", "/command", requestBody);
+                        isError = localIsError;
                         return;
                     }
                     else
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new AgentResponse { Ok=false, Message="I am not Primary, cannot proxy." }, 400);
+                        isError = localIsError;
                         return;
                     }
                 }
 
+                bool cmdIsError = false;
                 ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     var result = Execute(cmd);
-                    if (!result.Ok) isError = true;
+                    if (!result.Ok) cmdIsError = true;
                     RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                 });
+                localIsError = cmdIsError;
+                isError = localIsError;
                 return;
             }
 
@@ -646,18 +656,22 @@ namespace AgenticDebuggerVsix
 
                 if (batchCmd == null || batchCmd.Commands == null || batchCmd.Commands.Count == 0)
                 {
-                    isError = true;
+                    localIsError = true;
                     RespondJson(ctx.Response, new BatchResponse { Ok = false }, 400);
+                    isError = localIsError;
                     return;
                 }
 
+                bool batchIsError = false;
                 ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     var batchResult = ExecuteBatch(batchCmd);
-                    if (!batchResult.Ok) isError = true;
+                    if (!batchResult.Ok) batchIsError = true;
                     RespondJson(ctx.Response, batchResult, batchResult.Ok ? 200 : 400);
                 });
+                localIsError = batchIsError;
+                isError = localIsError;
                 return;
             }
 
@@ -669,18 +683,22 @@ namespace AgenticDebuggerVsix
 
                 if (config == null)
                 {
-                    isError = true;
+                    localIsError = true;
                     RespondJson(ctx.Response, new ConfigureResponse { Ok = false, Message = "Invalid configuration JSON" }, 400);
+                    isError = localIsError;
                     return;
                 }
 
+                bool configIsError = false;
                 ThreadHelper.JoinableTaskFactory.Run(async () =>
                 {
                     await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                     var configResult = ApplyConfiguration(config);
-                    if (!configResult.Ok) isError = true;
+                    if (!configResult.Ok) configIsError = true;
                     RespondJson(ctx.Response, configResult, configResult.Ok ? 200 : 400);
                 });
+                localIsError = configIsError;
+                isError = localIsError;
                 return;
             }
 
@@ -695,17 +713,21 @@ namespace AgenticDebuggerVsix
 
                     if (searchReq == null)
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new SymbolSearchResponse { Ok = false }, 400);
+                        isError = localIsError;
                         return;
                     }
 
+                    bool symbolsIsError = false;
                     Task.Run(async () =>
                     {
                         var result = await _roslynBridge.SearchSymbolsAsync(searchReq);
-                        if (!result.Ok) isError = true;
+                        if (!result.Ok) symbolsIsError = true;
                         RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                     }).Wait();
+                    localIsError = symbolsIsError;
+                    isError = localIsError;
                     return;
                 }
 
@@ -717,17 +739,21 @@ namespace AgenticDebuggerVsix
 
                     if (defReq == null)
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new DefinitionResponse { Ok = false, Message = "Invalid request" }, 400);
+                        isError = localIsError;
                         return;
                     }
 
+                    bool defIsError = false;
                     Task.Run(async () =>
                     {
                         var result = await _roslynBridge.GoToDefinitionAsync(defReq);
-                        if (!result.Ok) isError = true;
+                        if (!result.Ok) defIsError = true;
                         RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                     }).Wait();
+                    localIsError = defIsError;
+                    isError = localIsError;
                     return;
                 }
 
@@ -739,17 +765,21 @@ namespace AgenticDebuggerVsix
 
                     if (refReq == null)
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new ReferencesResponse { Ok = false, Message = "Invalid request" }, 400);
+                        isError = localIsError;
                         return;
                     }
 
+                    bool refsIsError = false;
                     Task.Run(async () =>
                     {
                         var result = await _roslynBridge.FindReferencesAsync(refReq);
-                        if (!result.Ok) isError = true;
+                        if (!result.Ok) refsIsError = true;
                         RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                     }).Wait();
+                    localIsError = refsIsError;
+                    isError = localIsError;
                     return;
                 }
 
@@ -758,21 +788,25 @@ namespace AgenticDebuggerVsix
                 {
                     // Parse file from query string
                     var query = ctx.Request.Url.Query;
-                    var filePath = System.Web.HttpUtility.ParseQueryString(query).Get("file");
+                    var filePath = ParseQueryStringParameter(query, "file");
 
                     if (string.IsNullOrEmpty(filePath))
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new DocumentOutlineResponse { Ok = false }, 400);
+                        isError = localIsError;
                         return;
                     }
 
+                    bool outlineIsError = false;
                     Task.Run(async () =>
                     {
                         var result = await _roslynBridge.GetDocumentOutlineAsync(filePath);
-                        if (!result.Ok) isError = true;
+                        if (!result.Ok) outlineIsError = true;
                         RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                     }).Wait();
+                    localIsError = outlineIsError;
+                    isError = localIsError;
                     return;
                 }
 
@@ -784,22 +818,27 @@ namespace AgenticDebuggerVsix
 
                     if (semReq == null)
                     {
-                        isError = true;
+                        localIsError = true;
                         RespondJson(ctx.Response, new SemanticInfoResponse { Ok = false, Message = "Invalid request" }, 400);
+                        isError = localIsError;
                         return;
                     }
 
+                    bool semIsError = false;
                     Task.Run(async () =>
                     {
                         var result = await _roslynBridge.GetSemanticInfoAsync(semReq);
-                        if (!result.Ok) isError = true;
+                        if (!result.Ok) semIsError = true;
                         RespondJson(ctx.Response, result, result.Ok ? 200 : 400);
                     }).Wait();
+                    localIsError = semIsError;
+                    isError = localIsError;
                     return;
                 }
             }
 
-            isError = true;
+            localIsError = true;
+            isError = localIsError;
             RespondText(ctx.Response, "Not found", 404);
         }
         
@@ -996,18 +1035,11 @@ namespace AgenticDebuggerVsix
                 {
                     // Agent mode: Minimize blocking UI operations
 
-                    // Suppress build UI
+                    // Note: SolutionBuild.SuppressUI is not available in the DTE automation model
+                    // Build UI suppression would require alternative approaches
                     if (config.SuppressWarnings)
                     {
-                        try
-                        {
-                            _dte.Solution.SolutionBuild.SuppressUI = true;
-                            response.Settings["SuppressBuildUI"] = "true";
-                        }
-                        catch (Exception ex)
-                        {
-                            response.Settings["SuppressBuildUI"] = $"failed: {ex.Message}";
-                        }
+                        response.Settings["SuppressBuildUI"] = "not supported in DTE automation";
                     }
 
                     // Auto-save documents
@@ -1035,13 +1067,7 @@ namespace AgenticDebuggerVsix
                 else if (config.Mode.Equals("human", StringComparison.OrdinalIgnoreCase))
                 {
                     // Human mode: Restore normal behavior
-
-                    try
-                    {
-                        _dte.Solution.SolutionBuild.SuppressUI = false;
-                        response.Settings["SuppressBuildUI"] = "false";
-                    }
-                    catch { }
+                    response.Settings["SuppressBuildUI"] = "not supported in DTE automation";
 
                     response.Ok = true;
                     response.Message = "Human mode configured successfully";
@@ -1184,6 +1210,30 @@ namespace AgenticDebuggerVsix
         {
             using var sr = new StreamReader(req.InputStream, req.ContentEncoding ?? Encoding.UTF8);
             return sr.ReadToEnd();
+        }
+
+        /// <summary>
+        /// Parse query string parameter without System.Web.HttpUtility dependency
+        /// </summary>
+        private string ParseQueryStringParameter(string queryString, string paramName)
+        {
+            if (string.IsNullOrEmpty(queryString))
+                return null;
+
+            // Remove leading '?' if present
+            if (queryString.StartsWith("?"))
+                queryString = queryString.Substring(1);
+
+            var pairs = queryString.Split('&');
+            foreach (var pair in pairs)
+            {
+                var parts = pair.Split(new[] { '=' }, 2);
+                if (parts.Length == 2 && parts[0].Equals(paramName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Uri.UnescapeDataString(parts[1]);
+                }
+            }
+            return null;
         }
 
         private void RespondText(HttpListenerResponse resp, string text, int status)
