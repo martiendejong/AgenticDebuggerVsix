@@ -52,16 +52,30 @@ namespace AgenticDebuggerVsix
         // Roslyn code analysis
         private RoslynBridge _roslynBridge;
 
-        // Permissions
+        // Permissions - dynamically reloaded
         private PermissionsModel _permissions;
+        private readonly AgenticDebuggerPackage _agenticPackage;
 
         internal HttpBridge(AsyncPackage package, DTE2 dte, PermissionsModel permissions)
         {
             _package = package;
+            _agenticPackage = package as AgenticDebuggerPackage;
             _dte = dte;
             _permissions = permissions ?? new PermissionsModel();
             _myId = Guid.NewGuid().ToString("N");
             _wsHandler = new WebSocketHandler(_metrics);
+        }
+
+        /// <summary>
+        /// Reload permissions from options page (for dynamic permission changes)
+        /// </summary>
+        private PermissionsModel GetCurrentPermissions()
+        {
+            if (_agenticPackage != null)
+            {
+                return _agenticPackage.GetPermissions();
+            }
+            return _permissions; // Fallback to cached
         }
 
         internal void SetRoslynBridge(RoslynBridge roslynBridge)
@@ -478,6 +492,9 @@ namespace AgenticDebuggerVsix
                 }
                 catch { }
 
+                // Reload permissions dynamically for accurate status reporting
+                var currentPermissions = GetCurrentPermissions();
+
                 var status = new
                 {
                     version = "1.1",
@@ -487,12 +504,12 @@ namespace AgenticDebuggerVsix
                     port = _localPort,
                     permissions = new
                     {
-                        codeAnalysis = _permissions.AllowCodeAnalysis,
-                        observability = _permissions.AllowObservability,
-                        debugControl = _permissions.AllowDebugControl,
-                        buildSystem = _permissions.AllowBuildSystem,
-                        breakpoints = _permissions.AllowBreakpoints,
-                        configuration = _permissions.AllowConfiguration
+                        codeAnalysis = currentPermissions.AllowCodeAnalysis,
+                        observability = currentPermissions.AllowObservability,
+                        debugControl = currentPermissions.AllowDebugControl,
+                        buildSystem = currentPermissions.AllowBuildSystem,
+                        breakpoints = currentPermissions.AllowBreakpoints,
+                        configuration = currentPermissions.AllowConfiguration
                     },
                     authentication = new
                     {
@@ -973,13 +990,16 @@ namespace AgenticDebuggerVsix
 
         private bool IsPermissionGranted(string method, string path, string action, out string errorMessage)
         {
-            if (_permissions.IsEndpointAllowed(method, path, action))
+            // Reload permissions dynamically to pick up changes from options dialog
+            var currentPermissions = GetCurrentPermissions();
+
+            if (currentPermissions.IsEndpointAllowed(method, path, action))
             {
                 errorMessage = null;
                 return true;
             }
 
-            errorMessage = _permissions.GetPermissionDeniedMessage(method, path, action);
+            errorMessage = currentPermissions.GetPermissionDeniedMessage(method, path, action);
             return false;
         }
 
