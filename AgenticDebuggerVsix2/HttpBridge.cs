@@ -501,7 +501,7 @@ namespace AgenticDebuggerVsix
 
                 var status = new
                 {
-                    version = "1.3",
+                    version = "1.4",
                     extensionName = "Agentic Debugger Bridge",
                     currentMode = mode,
                     isPrimary = _isPrimary,
@@ -1626,7 +1626,7 @@ li{margin:5px 0}
                 openapi = "3.0.1",
                 info = new {
                     title = "Agentic Debugger Bridge API",
-                    version = "1.3.0",
+                    version = "1.4.0",
                     description = "HTTP + WebSocket API for AI agents to control Visual Studio debugger, build system, and perform semantic code analysis via Roslyn. Uses permission-based security model with safe defaults (read-only operations enabled, write operations disabled)."
                 },
                 servers = new[] {
