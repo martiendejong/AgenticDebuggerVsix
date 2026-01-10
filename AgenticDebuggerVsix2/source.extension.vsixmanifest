@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="AgenticDebuggerVsix2.0f7df0bd-01a5-4c82-8b2c-319caea4b642" Version="1.2" Language="en-US" Publisher="Martien de Jong" />
+    <Identity Id="AgenticDebuggerVsix2.0f7df0bd-01a5-4c82-8b2c-319caea4b642" Version="1.3" Language="en-US" Publisher="Martien de Jong" />
     <DisplayName>Agentic Debugger Bridge</DisplayName>
     <Description>Agentic debugging bridge with permission-based security. AI agents can control Visual Studio debugger, builds, and code analysis via HTTP/WebSocket API.</Description>
   </Metadata>

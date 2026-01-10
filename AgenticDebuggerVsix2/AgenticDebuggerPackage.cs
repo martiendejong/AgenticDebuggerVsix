@@ -27,8 +27,26 @@ namespace AgenticDebuggerVsix
 
         internal PermissionsModel GetPermissions()
         {
-            var optionsPage = (PermissionsOptionsPage)GetDialogPage(typeof(PermissionsOptionsPage));
-            return optionsPage?.GetPermissions() ?? new PermissionsModel();
+            ThreadHelper.ThrowIfNotOnUIThread();
+
+            try
+            {
+                var optionsPage = (PermissionsOptionsPage)GetDialogPage(typeof(PermissionsOptionsPage));
+                if (optionsPage != null)
+                {
+                    // Ensure settings are loaded from storage
+                    // This is critical - GetDialogPage may return a page that hasn't loaded yet
+                    optionsPage.LoadSettingsFromStorage();
+                    return optionsPage.GetPermissions();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AgenticDebugger] Failed to load permissions: {ex.Message}");
+            }
+
+            // Fallback: return safe defaults
+            return new PermissionsModel();
         }
 
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
@@ -160,19 +178,57 @@ namespace AgenticDebuggerVsix
             try
             {
                 var result = MessageBox.Show(
-                    "Agentic Debugger requires permission configuration.\n\n" +
-                    "By default, only read-only operations (Code Analysis, Observability) are enabled.\n" +
-                    "To allow the AI agent to control debugging, builds, or breakpoints, please configure permissions.\n\n" +
-                    "Open permissions settings now?",
+                    "Agentic Debugger requires permissions to function.\n\n" +
+                    "The extension can:\n" +
+                    "  • Control debugging (start, stop, step through code)\n" +
+                    "  • Set and clear breakpoints\n" +
+                    "  • Trigger builds\n" +
+                    "  • Analyze code semantics\n" +
+                    "  • Read debugger state and errors\n\n" +
+                    "Enable all permissions now?\n\n" +
+                    "(You can change these later in Tools > Options > Agentic Debugger)",
                     "Agentic Debugger - First Run",
                     MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Information
+                    MessageBoxIcon.Question
                 );
 
                 if (result == DialogResult.Yes)
                 {
-                    // Open options page
-                    ShowOptionPage(typeof(PermissionsOptionsPage));
+                    // Enable all permissions immediately
+                    var optionsPage = (PermissionsOptionsPage)GetDialogPage(typeof(PermissionsOptionsPage));
+                    if (optionsPage != null)
+                    {
+                        optionsPage.EnableAllPermissions();
+                        optionsPage.SaveSettingsToStorage();
+
+                        System.Diagnostics.Debug.WriteLine("[AgenticDebugger] All permissions enabled on first run");
+
+                        // Show confirmation
+                        MessageBox.Show(
+                            "All permissions have been enabled!\n\n" +
+                            "The Agentic Debugger is now fully operational.\n" +
+                            "You can modify permissions anytime in:\n" +
+                            "Tools > Options > Agentic Debugger > Permissions",
+                            "Agentic Debugger",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                    }
+                }
+                else
+                {
+                    // User declined - show how to enable later
+                    System.Diagnostics.Debug.WriteLine("[AgenticDebugger] User declined permissions on first run");
+
+                    MessageBox.Show(
+                        "Permissions were not enabled.\n\n" +
+                        "Only read-only operations (Code Analysis, Observability) will be available.\n\n" +
+                        "To enable full functionality later:\n" +
+                        "Tools > Options > Agentic Debugger > Permissions",
+                        "Agentic Debugger",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
                 }
             }
             catch (Exception ex)

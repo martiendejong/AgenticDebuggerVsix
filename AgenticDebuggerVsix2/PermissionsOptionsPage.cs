@@ -92,12 +92,61 @@ namespace AgenticDebuggerVsix
         }
 
         /// <summary>
+        /// Enable all permissions (for first-run acceptance)
+        /// </summary>
+        public void EnableAllPermissions()
+        {
+            AllowCodeAnalysis = true;
+            AllowObservability = true;
+            AllowDebugControl = true;
+            AllowBuildSystem = true;
+            AllowBreakpoints = true;
+            AllowConfiguration = true;
+        }
+
+        /// <summary>
         /// Reset to safe defaults
         /// </summary>
         public override void ResetSettings()
         {
             _permissions.ResetToDefaults();
             base.ResetSettings();
+        }
+
+        /// <summary>
+        /// Load settings from storage - called by VS when dialog page is accessed
+        /// </summary>
+        public override void LoadSettingsFromStorage()
+        {
+            base.LoadSettingsFromStorage();
+
+            // After base loads properties, sync them back to _permissions
+            // This ensures _permissions object reflects loaded values
+            _permissions.AllowCodeAnalysis = AllowCodeAnalysis;
+            _permissions.AllowObservability = AllowObservability;
+            _permissions.AllowDebugControl = AllowDebugControl;
+            _permissions.AllowBuildSystem = AllowBuildSystem;
+            _permissions.AllowBreakpoints = AllowBreakpoints;
+            _permissions.AllowConfiguration = AllowConfiguration;
+            _permissions.ApiKey = ApiKey;
+        }
+
+        /// <summary>
+        /// Save settings to storage - called by VS when user clicks OK
+        /// </summary>
+        public override void SaveSettingsToStorage()
+        {
+            // Sync from _permissions to properties before saving
+            // (Properties are what DialogPage persists)
+            AllowCodeAnalysis = _permissions.AllowCodeAnalysis;
+            AllowObservability = _permissions.AllowObservability;
+            AllowDebugControl = _permissions.AllowDebugControl;
+            AllowBuildSystem = _permissions.AllowBuildSystem;
+            AllowBreakpoints = _permissions.AllowBreakpoints;
+            AllowConfiguration = _permissions.AllowConfiguration;
+            ApiKey = _permissions.ApiKey;
+
+            base.SaveSettingsToStorage();
         }
     }
 }

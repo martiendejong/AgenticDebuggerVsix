@@ -144,5 +144,18 @@ namespace AgenticDebuggerVsix
             AllowConfiguration = false;
             ApiKey = "dev";
         }
+
+        /// <summary>
+        /// Enable all permissions (for first-run acceptance)
+        /// </summary>
+        public void EnableAllPermissions()
+        {
+            AllowCodeAnalysis = true;
+            AllowObservability = true;
+            AllowDebugControl = true;
+            AllowBuildSystem = true;
+            AllowBreakpoints = true;
+            AllowConfiguration = true;
+        }
     }
 }

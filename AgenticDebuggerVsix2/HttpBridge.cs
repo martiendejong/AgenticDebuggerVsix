@@ -67,15 +67,31 @@ namespace AgenticDebuggerVsix
         }
 
         /// <summary>
-        /// Reload permissions from options page (for dynamic permission changes)
+        /// Get cached permissions (updated periodically from UI thread)
         /// </summary>
         private PermissionsModel GetCurrentPermissions()
         {
+            // Always use cached permissions - they're updated on UI thread in RefreshPermissionsCache()
+            return _permissions;
+        }
+
+        /// <summary>
+        /// Refresh permissions cache from UI thread (called periodically)
+        /// </summary>
+        private void RefreshPermissionsCache()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
             if (_agenticPackage != null)
             {
-                return _agenticPackage.GetPermissions();
+                try
+                {
+                    _permissions = _agenticPackage.GetPermissions();
+                }
+                catch
+                {
+                    // Keep existing cached permissions on error
+                }
             }
-            return _permissions; // Fallback to cached
         }
 
         internal void SetRoslynBridge(RoslynBridge roslynBridge)
@@ -100,10 +116,11 @@ namespace AgenticDebuggerVsix
                 _isPrimary = true;
                 _localPort = PrimaryPort;
                 WriteOutput($"Agentic Debugger: I am PRIMARY (Bridge). Listening on port {PrimaryPort}.");
-                
+
                 // Add myself to registry and write discovery file
                 UpdateMyInfoInRegistry();
                 WriteDiscoveryFile();
+                RefreshPermissionsCache(); // Load initial permissions
             }
             catch 
             {
@@ -277,12 +294,13 @@ namespace AgenticDebuggerVsix
                 {
                     // Remove stale > 15s (myself is always fresh)
                      _registry.RemoveAll(x => x.Id != _myId && (DateTime.UtcNow - x.LastSeen).TotalSeconds > 15);
-                     
+
                      // Keep myself updated
                 }
-                // Refresh my own info? Needs UI thread. 
+                // Refresh my own info? Needs UI thread.
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 UpdateMyInfoInRegistry();
+                RefreshPermissionsCache(); // Refresh permissions from UI thread
                 await Task.Delay(5000);
             }
         }
@@ -475,29 +493,15 @@ namespace AgenticDebuggerVsix
             // Status endpoint - shows permissions and basic info
             if (method == "GET" && path == "/status")
             {
-                var mode = "Unknown";
-                try
-                {
-                    ThreadHelper.JoinableTaskFactory.Run(async () => {
-                        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-                        var debugMode = _dte.Debugger.CurrentMode;
-                        mode = debugMode switch
-                        {
-                            dbgDebugMode.dbgBreakMode => "Break",
-                            dbgDebugMode.dbgRunMode => "Run",
-                            dbgDebugMode.dbgDesignMode => "Design",
-                            _ => "Unknown"
-                        };
-                    });
-                }
-                catch { }
+                // Use cached snapshot mode instead of blocking on UI thread
+                var mode = _lastSnapshot?.Mode ?? "Unknown";
 
                 // Reload permissions dynamically for accurate status reporting
                 var currentPermissions = GetCurrentPermissions();
 
                 var status = new
                 {
-                    version = "1.1",
+                    version = "1.3",
                     extensionName = "Agentic Debugger Bridge",
                     currentMode = mode,
                     isPrimary = _isPrimary,
@@ -1622,7 +1626,7 @@ li{margin:5px 0}
                 openapi = "3.0.1",
                 info = new {
                     title = "Agentic Debugger Bridge API",
-                    version = "1.1.0",
+                    version = "1.3.0",
                     description = "HTTP + WebSocket API for AI agents to control Visual Studio debugger, build system, and perform semantic code analysis via Roslyn. Uses permission-based security model with safe defaults (read-only operations enabled, write operations disabled)."
                 },
                 servers = new[] {
